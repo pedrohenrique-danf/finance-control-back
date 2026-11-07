@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.log
+
+# variáveis de ambiente: somente o exemplo vai ao Git
+.env
+.env.*
+!.env.example
+
+# Neon CLI (link local do projeto)
+.neon
