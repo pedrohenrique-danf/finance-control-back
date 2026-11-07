@@ -9,7 +9,7 @@ Definir como o schema do banco é modelado (Drizzle), como as tabelas evoluem (m
 ## Escopo
 
 **Cobre:** schema, relações, integridade, cliente de banco, repositórios, consultas agregadas, projeção de recorrências (RF04), fluxo de migração, seed, testes de integridade.
-**Não cobre:** configuração do Better Auth (07). Tabelas de notificações (`notificacoes`, `preferencias_notificacao`) **estão fora do MVP**; não as crie agora.
+**Não cobre:** configuração do Better Auth (07). Tabelas de notificações (`notificacoes`, `preferencias_notificacao`) **já existem no banco** (migração `0000_schema_inicial`), mas a funcionalidade está fora do MVP: não crie módulos/rotas para elas agora.
 
 ## Regras e padrões
 
@@ -41,7 +41,7 @@ Definir como o schema do banco é modelado (Drizzle), como as tabelas evoluem (m
 - Dinheiro: `numeric(14,2)`. O Drizzle devolve **string** — preserve como string; some **no SQL** (`sum`), nunca em `number`.
 - Datas de transação: `date` com `mode: "string"` (`"YYYY-MM-DD"`), evitando deslocamento de fuso.
 - Enums como `varchar` + **CHECK constraint** usando as listas de `shared/enums.ts` (evita `pgEnum`, que é mais difícil de migrar).
-- `usuario_id` em toda tabela de dados: `NOT NULL`, FK com `ON DELETE CASCADE` **[confirmar no ER]**.
+- `usuario_id` em toda tabela de dados: `NOT NULL`, FK com `ON DELETE CASCADE` (confirmado no ER).
 - **RNF02:** `transacoes.categoria_id` → `categorias.id` com **`ON DELETE SET NULL`** (coluna nullable). Idem `fonte_valor_id`, `recorrencia_id`, `operacao_dados_id`.
 - Nomes: tabelas/colunas do banco em pt-BR `snake_case` (conforme o modelo físico); propriedades TypeScript em inglês `camelCase`.
 - Não use a API relacional do Drizzle (`relations`) sem decisão registrada; use `join` explícito.
@@ -57,16 +57,21 @@ Definir como o schema do banco é modelado (Drizzle), como as tabelas evoluem (m
 | `transacoes` | `transactions` | RF03, RF05, RF06 |
 | `recorrencias` | `recurrences` | RF04 |
 | `importacoes_exportacoes`, `importacao_erros` | `dataOperations`, `importErrors` | RF07 |
+| `notificacoes`, `preferencias_notificacao` (só estrutura, pós-MVP) | `notifications`, `notificationPreferences` | — |
 
-### Reconciliação ER × Better Auth — **[PENDENTE DE DEFINIÇÃO]**
+Valores de domínio (CHECK constraints) são em pt-BR, iguais ao modelo físico (`'receita'`, `'despesa'`, `'fixa'`, `'variavel'`...), e vêm de `src/shared/enums.ts`.
+
+### Reconciliação ER × Better Auth — **decidida** (migração `0000_schema_inicial`)
 
 O ER lista `usuarios` (com `senha_hash`), `identidades_oauth` e `tokens_usuario`. O Better Auth guarda a **senha** na tabela de contas (`account.password`) e exige tabela de **sessão**. Para evitar duas fontes de verdade:
 
-- **Não** crie `usuarios.senha_hash`; o hash fica no Better Auth.
-- Mapeie `user` → `usuarios` e `account` → tabela de contas (substitui `identidades_oauth`), `verification` → substitui `tokens_usuario`; acrescente `session`.
-- Atualize o ER/modelo físico do projeto para refletir isso **depois da aprovação**.
-- Gere a referência com `@better-auth/cli generate`, adapte nomes e **passe a mantê-la manualmente** em `src/db/schema/auth.ts`.
-- Estado atual: `src/db/schema/auth.ts` contém um **rascunho** (`usuarios`, `sessoes`, `contas`, `verificacoes`) seguindo estas regras. **Nenhuma migração foi gerada nem aplicada**; isso só acontece após a aprovação.
+- `usuarios` **não** tem `senha_hash`; o hash fica em `contas.senha` (provedor `credential`). Acrescenta `imagem` (login social).
+- `contas` substitui `identidades_oauth` (índices `uq_contas_provedor_conta` e `uq_contas_usuario_provedor` equivalem aos do ER).
+- `verificacoes` substitui `tokens_usuario`; `sessoes` foi acrescentada.
+- O schema de auth é mantido manualmente em `src/db/schema/auth.ts`. Ao atualizar o Better Auth, confira os campos com `@better-auth/cli generate`.
+- `usuarios.ultimo_login_em` ainda não é preenchido; exige um hook do Better Auth (pendente).
+- Comentários (`COMMENT ON`) do modelo ficam na migração custom `0001_comentarios`.
+- FKs não são `DEFERRABLE` (o Drizzle não suporta); nenhuma regra do projeto depende disso.
 
 ### Fluxo obrigatório de alteração estrutural
 

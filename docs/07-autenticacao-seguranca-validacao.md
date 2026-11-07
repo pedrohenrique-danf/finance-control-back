@@ -19,7 +19,7 @@ Definir a integração do **Better Auth** no backend, a proteção de rotas (pad
 - Métodos: e-mail/senha e Google (Google habilitado só se as credenciais existirem).
 - **Não implemente hash de senha**: o Better Auth já faz (RNF03). Nunca armazene senha em claro nem crie coluna de hash própria.
 - IDs em UUID: configure o Better Auth para gerar UUID e use colunas `uuid` (ver 06).
-- O schema do Better Auth vive no schema Drizzle (**uma** fonte de verdade); a reconciliação com o ER é **[PENDENTE DE DEFINIÇÃO]** (ver 06).
+- O schema do Better Auth vive no schema Drizzle (**uma** fonte de verdade); a reconciliação com o ER está **decidida** (ver 06): `usuarios`, `sessoes`, `contas`, `verificacoes`.
 - Estratégia frontend↔backend: **[PENDENTE DE DEFINIÇÃO]**. Recomendação: **mesma origem** (o frontend repassa `/api/*` ao backend por proxy/rewrites). Isso evita cookies de terceiros e simplifica CORS. Com origens distintas, é preciso cookie `SameSite=None; Secure`, `trustedOrigins` e CORS com credenciais.
 
 ### Rotas protegidas (RNF03)
