@@ -16,7 +16,7 @@ export const valueSourceTypes = [
 ] as const;
 
 export const dataOperationTypes = ["importacao", "exportacao"] as const;
-export const dataFormats = ["csv", "xlsx"] as const;
+export const dataFormats = ["csv", "xlsx", "pdf"] as const;
 export const dataOperationStatuses = ["pendente", "processando", "concluida", "concluida_com_erros", "falhou"] as const;
 
 export const notificationTypes = [
