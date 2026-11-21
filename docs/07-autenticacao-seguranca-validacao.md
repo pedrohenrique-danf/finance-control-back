@@ -287,6 +287,84 @@ cria a recorrência com `startDate = date` e os dados da transação, grava a tr
 `origem = "recorrencia"` (mantendo o `status` informado) e materializa o restante como no POST de recorrências.
 O índice único evita duplicar a ocorrência da data lançada.
 
+### Importar e exportar (RF07)
+
+**Formato CSV** (importação e exportação usam o mesmo arquivo), padrão Excel pt-BR, UTF-8:
+
+```text
+data;descricao;valor;tipo;natureza;situacao;categoria;conta
+05/11/2026;Salário estágio;4.200,00;receita;;efetivada;Salário;Nubank
+02/11/2026;Mercado Pão de Açúcar;214,37;despesa;variavel;efetivada;Alimentação;Cartão Inter
+```
+
+Separador `;`; data `dd/mm/aaaa` (aceita `AAAA-MM-DD` na importação); valor positivo `1.234,56`; `tipo`
+`receita|despesa`; `natureza` `fixa|variavel` (vazia = variável em despesa, sempre vazia em receita);
+`situacao` `efetivada|pendente` (vazia = efetivada; aceita "pago"/"recebido"); `categoria` e `conta` por nome
+(opcionais). Obrigatórias: `data`, `descricao`, `valor`, `tipo`. Até 2.000 linhas e 5 MB.
+
+**PDF do Nubank** (fatura do cartão e extrato da conta), texto extraído com `pdfjs-dist` no backend
+(`src/modules/data-exchange`). Fatura: compras viram despesas variáveis; estornos (valor negativo) viram receitas;
+o pagamento da fatura vem com `suggestedSkip: true` (já aparece no extrato da conta). Extrato: o bloco
+"Total de entradas"/"Total de saídas" de cada dia define receita/despesa; a descrição junta o tipo do lançamento
+e a contraparte ("Transferência recebida pelo Pix — FULANO").
+
+**Fluxo em duas etapas:**
+
+1. `POST /imports/preview` (multipart, campo `file`) → `{ source, fileName, period, rows[], errors[] }`, sem gravar.
+   `source`: `csv | nubank_fatura | nubank_extrato`; cada linha traz `date`, `description`, `amount`, `type`,
+   `nature`, `status`, `categoryName`, `accountName`, `installment`, `suggestedSkip`, `note`.
+2. `POST /imports` com as linhas revisadas (o usuário escolhe conta e categorias e desmarca o que não quer):
+
+```ts
+export const confirmImportSchema = z
+  .object({
+    fileName: z.string().trim().min(1).max(255),
+    format: z.enum(dataFormats), // "csv" | "pdf"
+    rows: z
+      .array(
+        z.object({
+          date: isoDateSchema,
+          description: z.string().trim().min(1).max(160),
+          amount: moneySchema,
+          type: z.enum(transactionTypes),
+          nature: z.enum(transactionNatures).nullable(),
+          status: z.enum(transactionStatuses),
+          categoryId: z.string().uuid().nullable(),
+          valueSourceId: z.string().uuid().nullable(),
+        }),
+      )
+      .min(1)
+      .max(2000),
+    /** Erros da pré-visualização, gravados em importacao_erros para o histórico. */
+    errors: z
+      .array(z.object({ line: z.number().int(), field: z.string().nullable(), message: z.string(), content: z.string().nullable() }))
+      .max(2000),
+  })
+  .strict();
+```
+
+O backend cria a operação (`tipo = importacao`, `status = concluida` ou `concluida_com_erros`, contagem de linhas),
+as transações com `origem = "importacao"` e `operacao_dados_id`, grava os erros e gera a notificação
+`importacao_concluida`. Resposta 201: a operação (mesmo formato do histórico).
+
+**Histórico** `GET /data-operations` → `{ data: [{ id, type, format, status, fileName, periodStart, periodEnd,
+totalRows, successRows, errorRows, errorMessage, createdAt, completedAt }] }`, mais recente primeiro.
+
+**Exportação** `GET /exports/transactions?month=YYYY-MM&format=csv` → `text/csv; charset=utf-8` com BOM (o Excel
+reconhece acentos), `Content-Disposition: attachment; filename="financecontrol-YYYY-MM.csv"`, no formato acima;
+registra a operação (`tipo = exportacao`) e gera a notificação `exportacao_pronta`.
+
+### Notificações
+
+Geradas pelo backend a partir das ações (MVP): lançar transação, criar categoria, conta ou despesa fixa
+(`tipo = sistema`), concluir importação (`importacao_concluida`) e exportação (`exportacao_pronta`). Canal `app`;
+criadas com `status = enviada` e marcadas como `lida` pelo usuário. Lembretes e vencimentos
+(`lembrete_registro`, `vencimento_despesa`) e preferências por canal ficam para depois do MVP.
+
+`GET /notifications?page=&pageSize=` → `{ data: [{ id, type, title, message, status, createdAt, readAt,
+transactionId, recurrenceId }], meta: { page, pageSize, total, unread } }`, mais recente primeiro.
+`PUT /notifications/:id` e `PUT /notifications` (todas) com `{ "status": "lida" }`.
+
 ### Regra de negócio no serviço (dependência por interface)
 
 ```ts

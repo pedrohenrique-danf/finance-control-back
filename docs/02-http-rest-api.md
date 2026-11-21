@@ -43,8 +43,13 @@ Antes de codar, defina: **recurso ↔ URI ↔ método HTTP ↔ resposta**.
 | PUT | `/api/v1/recurrences/:id` | substituir recorrência (inclui pausar/reativar) | 200 |
 | DELETE | `/api/v1/recurrences/:id` | encerrar recorrência | 204 |
 | GET | `/api/v1/dashboard/summary?month=YYYY-MM` | cards, gráficos e próximas fixas do dashboard (RF05) | 200 |
-| POST | `/api/v1/imports` | importar CSV (RF07) | 201 |
-| GET | `/api/v1/exports/transactions?month=YYYY-MM&format=csv` | exportar (RF07) | 200 |
+| POST | `/api/v1/imports/preview` | ler CSV ou PDF do Nubank e devolver as linhas para revisão (RF07) | 200 |
+| POST | `/api/v1/imports` | confirmar a importação das linhas revisadas (RF07) | 201 + `Location` |
+| GET | `/api/v1/data-operations` | histórico de importações e exportações (RF07) | 200 |
+| GET | `/api/v1/exports/transactions?month=YYYY-MM&format=csv` | exportar CSV do mês (RF07) | 200 (`text/csv`) |
+| GET | `/api/v1/notifications` | listar notificações (`meta.unread`) | 200 |
+| PUT | `/api/v1/notifications/:id` | marcar como lida (`{ "status": "lida" }`) | 200 |
+| PUT | `/api/v1/notifications` | marcar todas como lidas (`{ "status": "lida" }`) | 200 |
 | `*` | `/api/auth/*` | Better Auth (ver 07) | — |
 
 Regras de URI: substantivos no plural, `kebab-case`, sem verbos. Coleção (`/categories`) e recurso (`/categories/:id`) são recursos **diferentes**. A notação `:id` é neutra; adapte à sintaxe do framework escolhido.
