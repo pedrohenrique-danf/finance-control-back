@@ -199,6 +199,33 @@ export type CreateCategoryInput = z.output<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.output<typeof updateCategorySchema>;
 ```
 
+### Contas e cartões (fontes_valor): schemas
+
+```ts
+// src/modules/value-sources/value-sources.schemas.ts
+export const valueSourceInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80), // único por usuário (uq_fontes_valor_usuario_nome → 409)
+    type: z.enum(valueSourceTypes),
+    institution: z.string().trim().max(80).nullable().optional(),
+    initialBalance: z.string().regex(/^-?\d{1,12}(\.\d{1,2})?$/, "Use ponto decimal (ex.: -150.00)."), // pode ser negativo
+    active: z.boolean().default(true),
+  })
+  .strict();
+// POST e PUT usam o mesmo corpo (PUT substitui o recurso inteiro).
+```
+
+Resposta (`GET /value-sources` → `{ data: [...] }`; `GET /value-sources/:id` → objeto):
+
+```json
+{ "id": "…", "name": "Nubank", "type": "conta_corrente", "institution": "Nubank",
+  "initialBalance": "2350.00", "active": true, "currentBalance": "15923.64" }
+```
+
+`currentBalance` = saldo inicial + receitas − despesas **efetivadas** da conta, calculado no backend.
+Sem `DELETE` no MVP: a conta é desativada (`active: false`); excluir manteria as transações com
+`fonte_valor_id = NULL` (RNF02) e fica para quando houver a necessidade.
+
 ### Regra de negócio no serviço (dependência por interface)
 
 ```ts

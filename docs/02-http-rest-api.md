@@ -28,6 +28,10 @@ Antes de codar, defina: **recurso ↔ URI ↔ método HTTP ↔ resposta**.
 | POST | `/api/v1/categories` | criar categoria | 201 + `Location` |
 | PUT | `/api/v1/categories/:id` | substituir nome/cor/ícone | 200 |
 | DELETE | `/api/v1/categories/:id` | excluir categoria | 204 |
+| GET | `/api/v1/value-sources` | listar contas e cartões com `currentBalance` | 200 |
+| GET | `/api/v1/value-sources/:id` | obter conta | 200 |
+| POST | `/api/v1/value-sources` | criar conta ou cartão | 201 + `Location` |
+| PUT | `/api/v1/value-sources/:id` | substituir conta (inclui ativar/desativar) | 200 |
 | GET | `/api/v1/transactions?month=YYYY-MM&page=&pageSize=` (+ filtros, ver 07) | extrato do mês com `meta.summary` (RF06) | 200 |
 | GET | `/api/v1/transactions/:id` | obter transação | 200 |
 | POST | `/api/v1/transactions` | lançar transação (RF03) | 201 + `Location` |
