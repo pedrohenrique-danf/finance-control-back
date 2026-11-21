@@ -40,7 +40,7 @@ Antes de codar, defina: **recurso ↔ URI ↔ método HTTP ↔ resposta**.
 | GET | `/api/v1/recurrences` | listar recorrências | 200 |
 | POST | `/api/v1/recurrences` | criar e projetar despesa fixa (RF04) | 201 + `Location` |
 | DELETE | `/api/v1/recurrences/:id` | encerrar recorrência | 204 |
-| GET | `/api/v1/dashboard/summary?month=YYYY-MM` | cards do dashboard (RF05) | 200 |
+| GET | `/api/v1/dashboard/summary?month=YYYY-MM` | cards, gráficos e próximas fixas do dashboard (RF05) | 200 |
 | POST | `/api/v1/imports` | importar CSV (RF07) | 201 |
 | GET | `/api/v1/exports/transactions?month=YYYY-MM&format=csv` | exportar (RF07) | 200 |
 | `*` | `/api/auth/*` | Better Auth (ver 07) | — |
@@ -88,6 +88,40 @@ Recurso de outro usuário retorna **404**, nunca 403 (não revela existência).
   }
 }
 ```
+
+### Resumo do dashboard (RF05)
+
+`GET /api/v1/dashboard/summary?month=YYYY-MM` devolve tudo o que a tela inicial precisa numa chamada:
+
+```json
+{
+  "month": "2026-11",
+  "income": "6020.00",
+  "fixedExpenses": "2095.60",
+  "variableExpenses": "1740.97",
+  "paidIncome": "5420.00",
+  "paidExpenses": "2789.47",
+  "balance": "2630.53",
+  "forecast": "2183.43",
+  "byCategory": [
+    { "type": "despesa", "categoryId": "…", "total": "1299.90" },
+    { "type": "despesa", "categoryId": null, "total": "762.37" }
+  ],
+  "history": [{ "month": "2026-06", "income": "4500.00", "expense": "3120.10" }],
+  "upcoming": [
+    { "recurrenceId": "…", "description": "Streaming", "amount": "55.90", "categoryId": "…", "dueDate": "2026-11-22" }
+  ]
+}
+```
+
+| Campo | Regra |
+|---|---|
+| `income`, `fixedExpenses`, `variableExpenses` | todas as transações do mês (pendentes e efetivadas); fixas/variáveis pela `natureza` |
+| `paidIncome`, `paidExpenses`, `balance` | só **efetivadas**; `balance = paidIncome − paidExpenses` ("saldo do mês") |
+| `forecast` | `income − fixedExpenses − variableExpenses` ("saldo previsto", com pendentes) |
+| `byCategory` | total do mês por tipo e categoria; `categoryId: null` = "Sem categoria" (RNF02). Usado também pela tela de Categorias |
+| `history` | 6 meses terminando em `month`, em ordem cronológica (gráfico receitas × despesas) |
+| `upcoming` | até 3 recorrências ativas de despesa com vencimento de hoje em diante (mês atual ou seguinte) ainda não efetivadas |
 
 ### Sem estado (REST) e sessão
 
