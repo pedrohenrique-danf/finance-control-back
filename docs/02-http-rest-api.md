@@ -38,7 +38,9 @@ Antes de codar, defina: **recurso ↔ URI ↔ método HTTP ↔ resposta**.
 | PUT | `/api/v1/transactions/:id` | substituir transação | 200 |
 | DELETE | `/api/v1/transactions/:id` | excluir transação | 204 |
 | GET | `/api/v1/recurrences` | listar recorrências | 200 |
+| GET | `/api/v1/recurrences/:id` | obter recorrência com a agenda dos próximos 6 meses | 200 |
 | POST | `/api/v1/recurrences` | criar e projetar despesa fixa (RF04) | 201 + `Location` |
+| PUT | `/api/v1/recurrences/:id` | substituir recorrência (inclui pausar/reativar) | 200 |
 | DELETE | `/api/v1/recurrences/:id` | encerrar recorrência | 204 |
 | GET | `/api/v1/dashboard/summary?month=YYYY-MM` | cards, gráficos e próximas fixas do dashboard (RF05) | 200 |
 | POST | `/api/v1/imports` | importar CSV (RF07) | 201 |

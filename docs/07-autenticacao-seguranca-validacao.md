@@ -226,6 +226,67 @@ Resposta (`GET /value-sources` → `{ data: [...] }`; `GET /value-sources/:id` �
 Sem `DELETE` no MVP: a conta é desativada (`active: false`); excluir manteria as transações com
 `fonte_valor_id = NULL` (RNF02) e fica para quando houver a necessidade.
 
+### Despesas fixas (recorrências, RF04): schemas e regras
+
+```ts
+// src/modules/recurrences/recurrences.schemas.ts
+const recurrenceFields = {
+  description: z.string().trim().min(1).max(160),
+  amount: moneySchema,
+  dueDay: z.number().int().min(1).max(31), // dia 29–31 vira o último dia em meses curtos
+  startDate: isoDateSchema,
+  endDate: isoDateSchema.nullable(), // null = sem término
+  categoryId: z.string().uuid().nullable().optional(),
+  valueSourceId: z.string().uuid().nullable().optional(),
+};
+
+export const createRecurrenceSchema = z
+  .object({ type: z.enum(transactionTypes).default("despesa"), ...recurrenceFields })
+  .strict()
+  .refine((v) => !v.endDate || v.endDate >= v.startDate, { path: ["endDate"], message: "Fim antes do início." });
+
+/** PUT: tipo imutável (como em categorias); `active` pausa/reativa. */
+export const updateRecurrenceSchema = z
+  .object({ ...recurrenceFields, active: z.boolean() })
+  .strict()
+  .refine((v) => !v.endDate || v.endDate >= v.startDate, { path: ["endDate"], message: "Fim antes do início." });
+```
+
+Regras (serviço):
+
+- **Criar (POST)** grava a recorrência e **materializa** as ocorrências de `startDate` até o fim do mês corrente
+  (`materialize`, doc 06): transações `pendente`, `origem = "recorrencia"`, natureza `fixa` (despesa) ou `null`
+  (receita). Meses seguintes são materializados conforme o tempo passa (**[PENDENTE DE DEFINIÇÃO]**: job diário ×
+  materialização sob demanda na leitura). O índice único (`recorrencia_id`, `data`) torna tudo idempotente.
+- **Editar (PUT)** vale para as ocorrências **ainda não materializadas**; lançamentos existentes não mudam
+  (cada um é editado no extrato). Pausada (`active: false`) não materializa nem aparece em `upcoming`.
+- **Encerrar (DELETE)** remove a recorrência; as transações já lançadas ficam no extrato com
+  `recorrencia_id = NULL` (RNF02).
+- **Categoria** do tipo diferente da recorrência → 400 em `categoryId` (mesma regra das transações).
+
+Resposta de `GET /recurrences/:id` (a lista devolve os mesmos campos, sem `schedule`):
+
+```json
+{
+  "id": "…", "type": "despesa", "description": "Aluguel", "amount": "1200.00", "dueDay": 5,
+  "startDate": "2026-05-05", "endDate": null, "active": true, "categoryId": "…", "valueSourceId": "…",
+  "schedule": [
+    { "month": "2026-11", "dueDate": "2026-11-05", "status": "efetivada", "transactionId": "…" },
+    { "month": "2026-12", "dueDate": "2026-12-05", "status": "prevista", "transactionId": null }
+  ]
+}
+```
+
+`schedule`: 6 meses a partir do mês corrente que a recorrência cobre. `status` = situação da ocorrência
+materializada (`efetivada`/`pendente`) ou `prevista` quando ainda não há transação.
+
+#### "Repetir todo mês" ao lançar uma transação
+
+`POST /transactions` aceita o campo opcional `repeatMonthly: { dueDay, endDate }`. O backend, numa transação de banco:
+cria a recorrência com `startDate = date` e os dados da transação, grava a transação com `recorrenciaId` e
+`origem = "recorrencia"` (mantendo o `status` informado) e materializa o restante como no POST de recorrências.
+O índice único evita duplicar a ocorrência da data lançada.
+
 ### Regra de negócio no serviço (dependência por interface)
 
 ```ts
