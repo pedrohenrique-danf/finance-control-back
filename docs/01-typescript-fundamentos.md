@@ -79,9 +79,9 @@ Definir como escrever TypeScript de forma tipada, legível e segura no backend d
 
 ```ts
 // src/shared/enums.ts
-export const transactionTypes = ["income", "expense"] as const;
-export const transactionNatures = ["fixed", "variable"] as const;
-export const transactionOrigins = ["manual", "recurrence", "import"] as const;
+export const transactionTypes = ["receita", "despesa"] as const;
+export const transactionNatures = ["fixa", "variavel"] as const;
+export const transactionOrigins = ["manual", "recorrencia", "importacao"] as const;
 
 export type TransactionType = (typeof transactionTypes)[number];
 ```

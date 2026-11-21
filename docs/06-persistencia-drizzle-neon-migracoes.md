@@ -336,8 +336,9 @@ async function materialize(db: Database, recurrence: Recurrence, months: number)
   const rows = await db.insert(transactions)
     .values(dates.map((date) => ({
       userId: recurrence.userId, recurrenceId: recurrence.id, categoryId: recurrence.categoryId,
-      type: recurrence.type, nature: "fixed" as const, description: recurrence.description,
-      amount: recurrence.amount, date, status: "pending", origin: "recurrence" as const,
+      type: recurrence.type, nature: recurrence.type === "despesa" ? ("fixa" as const) : null, // ck_transacoes_natureza
+      description: recurrence.description,
+      amount: recurrence.amount, date, status: "pendente" as const, origin: "recorrencia" as const,
     })))
     .onConflictDoNothing()                               // idempotente com o índice único
     .returning({ id: transactions.id });

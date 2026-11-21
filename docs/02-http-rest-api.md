@@ -332,7 +332,7 @@ export const healthRoute: RouteDefinition = {
 # criar (esperado: 201 + Location)
 curl -i -X POST http://localhost:3001/api/v1/categories \
   -H "Content-Type: application/json" -b cookies.txt \
-  -d '{"name":"Alimentação","type":"expense","color":"#FF8800"}'
+  -d '{"name":"Alimentação","type":"despesa","color":"#FF8800"}'
 
 # id inválido → 400 ; uuid inexistente → 404 ; sem cookie → 401
 curl -i -b cookies.txt http://localhost:3001/api/v1/categories/abc
