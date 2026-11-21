@@ -113,6 +113,7 @@ export const isoDateSchema = z
 
 export const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use o formato YYYY-MM.");
 
+// Enums do banco (src/shared/enums.ts): "receita" | "despesa", "fixa" | "variavel", "pendente" | "efetivada".
 export const createTransactionSchema = z
   .object({
     type: z.enum(transactionTypes),
@@ -120,25 +121,65 @@ export const createTransactionSchema = z
     description: z.string().trim().min(1).max(160),
     amount: moneySchema,
     date: isoDateSchema,
+    status: z.enum(transactionStatuses).default("efetivada"), // coluna status (default do banco)
     categoryId: z.string().uuid().nullable().optional(),
     valueSourceId: z.string().uuid().nullable().optional(),
   })
   .strict()
   .superRefine((v, ctx) => {
-    if (v.type === "expense" && !v.nature) {
+    // espelha ck_transacoes_natureza
+    if (v.type === "despesa" && !v.nature) {
       ctx.addIssue({ code: "custom", path: ["nature"], message: "Informe se a despesa é fixa ou variável." });
     }
-    if (v.type === "income" && v.nature) {
+    if (v.type === "receita" && v.nature) {
       ctx.addIssue({ code: "custom", path: ["nature"], message: "Receitas não têm natureza." });
     }
   });
 
-export const listTransactionsQuerySchema = z.object({
-  month: monthSchema,
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
-});
+/** PUT substitui o recurso inteiro: mesmo corpo da criação. `origin` e `recurrenceId` não são editáveis. */
+export const updateTransactionSchema = createTransactionSchema;
+
+const uuidList = z
+  .string()
+  .transform((v) => v.split(",").filter(Boolean))
+  .pipe(z.array(z.string().uuid()).max(50));
+
+/** Extrato (RF06). Sem `from`/`to`, filtra pelo mês; com período, o mês é ignorado. */
+export const listTransactionsQuerySchema = z
+  .object({
+    month: monthSchema.optional(),
+    from: isoDateSchema.optional(),
+    to: isoDateSchema.optional(),
+    q: z.string().trim().max(100).optional(), // busca na descrição, sem diferenciar acentos/maiúsculas
+    type: z.enum(transactionTypes).optional(),
+    nature: z.enum(transactionNatures).optional(),
+    status: z.enum(transactionStatuses).optional(),
+    categoryIds: uuidList.optional(), // CSV: ?categoryIds=uuid1,uuid2
+    valueSourceIds: uuidList.optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .refine((v) => v.month || v.from || v.to, { path: ["month"], message: "Informe o mês ou um período." })
+  .refine((v) => !v.from || !v.to || v.from <= v.to, { path: ["to"], message: "Período inválido." });
 ```
+
+Resposta de `GET /transactions` (ordem: data desc; no mesmo dia, o último lançado primeiro):
+
+```json
+{
+  "data": [{ "id": "…", "type": "despesa", "nature": "variavel", "description": "Mercado", "amount": "89.90",
+             "date": "2026-11-05", "status": "efetivada", "origin": "manual",
+             "categoryId": "…", "valueSourceId": "…", "recurrenceId": null }],
+  "meta": {
+    "page": 1, "pageSize": 20, "total": 39, "totalPages": 2,
+    "summary": { "income": "6020.00", "expense": "3836.57", "balance": "2183.43" },
+    "dayTotals": { "2026-11-05": "-89.90" }
+  }
+}
+```
+
+`summary` e `dayTotals` consideram **todo o conjunto filtrado** (não só a página): o extrato mostra entradas, saídas,
+saldo e o saldo de cada dia sem precisar baixar todas as páginas.
 
 ### Categorias: schemas
 
