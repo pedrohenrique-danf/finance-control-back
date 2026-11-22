@@ -4,8 +4,15 @@ import type { AppConfig } from "@/app/config";
 import type { Database } from "@/db/client";
 import { accounts, sessions, users, verifications } from "@/db/schema";
 
-export function createAuth(deps: { db: Database; config: AppConfig }) {
-  const { db, config } = deps;
+export interface AuthDeps {
+  db: Database;
+  config: AppConfig;
+  /** Chamado após criar o usuário (cadastro por e-mail ou primeiro login com Google). */
+  onUserCreated?: (userId: string) => Promise<void>;
+}
+
+export function createAuth(deps: AuthDeps) {
+  const { db, config, onUserCreated } = deps;
   return betterAuth({
     appName: "FinanceControl",
     secret: config.betterAuthSecret,
@@ -19,6 +26,7 @@ export function createAuth(deps: { db: Database; config: AppConfig }) {
     socialProviders: config.google
       ? { google: { clientId: config.google.clientId, clientSecret: config.google.clientSecret } }
       : {},
+    databaseHooks: onUserCreated ? { user: { create: { after: async (user) => onUserCreated(user.id) } } } : {},
     advanced: {
       database: { generateId: "uuid" },
       useSecureCookies: config.env === "production",
