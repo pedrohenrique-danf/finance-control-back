@@ -10,3 +10,9 @@ export function createDb(databaseUrl: string) {
 }
 
 export type Database = ReturnType<typeof createDb>["db"];
+
+/** Transação aberta por `db.transaction(async (tx) => …)`. */
+export type DbTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/** Banco ou transação aberta: as funções de escrita compartilhadas aceitam os dois. */
+export type DbExecutor = Database | DbTransaction;

@@ -50,7 +50,8 @@ export class NotFoundError extends AppError {
 }
 
 export class ConflictError extends AppError {
-  constructor(message: string) {
-    super("CONFLICT", 409, message);
+  /** `path` aponta o campo em conflito (o frontend mostra a mensagem nele). */
+  constructor(message: string, path?: string) {
+    super("CONFLICT", 409, message, path ? [{ path, message }] : undefined);
   }
 }

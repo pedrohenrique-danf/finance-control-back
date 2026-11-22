@@ -41,3 +41,41 @@ export function projectDates(input: {
   }
   return dates;
 }
+
+/** Fuso usado para "hoje" e "mês corrente" (o produto é brasileiro; o servidor pode rodar em UTC). */
+export const APP_TIME_ZONE = "America/Sao_Paulo";
+
+const isoDay = new Intl.DateTimeFormat("en-CA", {
+  timeZone: APP_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** "Hoje" (YYYY-MM-DD) no fuso da aplicação. */
+export function todayIn(now: Date): string {
+  return isoDay.format(now);
+}
+
+/** "YYYY-MM" de uma data "YYYY-MM-DD". */
+export function monthOf(date: string): string {
+  return date.slice(0, 7);
+}
+
+/** Desloca um mês "YYYY-MM" em `delta` meses. */
+export function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  const index = y * 12 + (m - 1) + delta;
+  return `${Math.floor(index / 12)}-${pad((index % 12) + 1)}`;
+}
+
+/** Vencimento no mês (dia 29–31 vira o último dia em meses curtos). */
+export function dueDateIn(dueDay: number, month: string): string {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  return `${month}-${pad(Math.min(dueDay, daysInMonth(y, m)))}`;
+}
+
+/** Último dia do mês "YYYY-MM" (YYYY-MM-DD). */
+export function lastDayOf(month: string): string {
+  return dueDateIn(31, month);
+}
