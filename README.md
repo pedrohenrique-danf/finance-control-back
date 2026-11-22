@@ -80,9 +80,9 @@ Pergunte ao responsável antes de assumir qualquer item abaixo.
 | #   | Decisão                                                                                                    | Arquivo relacionado |
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------- |
 | 1   | Reconciliar o ER com as tabelas do Better Auth (`usuarios`, `identidades_oauth`, `tokens_usuario`, sessão) | 06, 07              |
-| 2   | Banco/branch Neon dedicado para testes automatizados                                                       | 05                  |
+| 2   | Banco/branch Neon dedicado para testes automatizados (hoje: `homologacao`, usuários únicos e limpeza)       | 05                  |
 | 3   | Limites de "data retroativa" das transações                                                                | 06, 07              |
-| 4   | Materialização dos meses futuros das despesas fixas (job diário × na leitura)                             | 07                  |
+| 4   | Materialização dos meses futuros das despesas fixas — **implementada sob demanda na leitura; confirmar**   | 07                  |
 | 5   | Estratégia frontend↔backend: mesma origem (proxy/rewrites) ou origens distintas                            | 02, 07              |
 | 6   | Biblioteca de log                                                                                          | 03                  |
 | 7   | Hospedagem do backend                                                                                      | 03                  |
@@ -106,9 +106,11 @@ Projeto Neon `finance-control` (região `aws-sa-east-1`).
 ```bash
 pnpm install              # instala dependências (lockfile congelado em CI: --frozen-lockfile)
 cp .env.example .env      # preencha com a connection string da branch homologacao
-pnpm db:migrate           # aplica migrações (quando existirem)
+pnpm db:migrate           # aplica as migrações de drizzle/
+pnpm db:seed              # usuário de demonstração com dados (ver 06)
 pnpm dev                  # http://localhost:3001/api/v1/health
 pnpm verify               # typecheck + lint + testes unitários
+pnpm test:integration     # fluxo completo da API contra o banco do .env (ver 05)
 ```
 
 ## Convenções compartilhadas com o frontend
@@ -121,7 +123,7 @@ Estas regras valem para backend e frontend. Não as altere sem atualizar os dois
 | Identificadores     | UUID (string)                                                                                                                     |
 | Valor monetário     | **string decimal** com ponto: `"1234.50"` (nunca `number` na API)                                                                 |
 | Data                | `"YYYY-MM-DD"` — Mês: `"YYYY-MM"`                                                                                                 |
-| Enums (API e banco) | `income`/`expense`; `fixed`/`variable`; `manual`/`recurrence`/`import`                                                            |
+| Enums (API e banco) | `receita`/`despesa`; `fixa`/`variavel`; `pendente`/`efetivada`; `manual`/`recorrencia`/`importacao` (`src/shared/enums.ts`)       |
 | Coleção             | `{ "data": [...], "meta"?: { "page", "pageSize", "total" } }`                                                                     |
 | Recurso único       | objeto direto, sem envelope                                                                                                       |
 | Erro                | `{ "error": { "code", "message", "details"?, "requestId" } }`                                                                     |

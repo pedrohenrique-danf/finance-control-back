@@ -66,6 +66,11 @@ Regras:
 - Isolamento: cada teste cria seu **próprio usuário** (e-mail único). Remover o usuário apaga seus dados em cascata. Não dependa de ordem entre testes.
 - Teste **regra de negócio, relacionamentos e integridade** (exigência do projeto), não só o caminho feliz.
 - Use fakes em memória, não mocks de implementação.
+- **Como está hoje:** regras puras e de serviço em `src/**/*.test.ts` (`pnpm test`, sem banco, inclusive o teste que
+  garante 401 em toda rota privada); o fluxo completo da API em `tests/integration/` (`pnpm test:integration`):
+  cadastro real pelo Better Auth, chamadas HTTP com o cookie de sessão e limpeza em cascata dos usuários criados.
+  Enquanto o item 2 do README não for decidido, roda na branch Neon `homologacao` do `.env` (bloqueado se
+  `NODE_ENV=production`), com timeout de 60 s por teste por causa da latência do banco remoto.
 - Meta de cobertura: **[PENDENTE DE DEFINIÇÃO]**.
 - CI mínima: `typecheck → lint → test → test:integration → test:e2e`. Plataforma **[PENDENTE DE DEFINIÇÃO]**.
 

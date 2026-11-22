@@ -327,6 +327,10 @@ export function projectDates(input: {
 
 ### Projeção de despesa fixa (RF04) em um único `INSERT`
 
+Implementação real: `src/modules/recurrences/recurrences.repository.ts` (`materialize`) e a função pura
+`pendingOccurrences` (`occurrences.ts`), que calcula as datas a partir de `ultimo_mes_materializado` (migração
+`0003`) em vez de um número fixo de meses. O exemplo abaixo mostra a ideia central (um `INSERT` idempotente).
+
 ```ts
 async function materialize(db: Database, recurrence: Recurrence, months: number) {
   const dates = projectDates({
@@ -348,13 +352,17 @@ async function materialize(db: Database, recurrence: Recurrence, months: number)
 
 ### Seed (substitui o `flask shell` para dados de dev)
 
+`pnpm db:seed` (idempotente; **nunca** em produção) cria o usuário `demo@financecontrol.local` (senha
+`Demo-FinanceControl-2026`) **pelo Better Auth** — o hook de cadastro gera as categorias padrão e a Carteira — e, se
+ele ainda não tem transações, grava a demonstração do protótipo relativa ao mês atual (`src/db/seed/demo-data.ts`):
+3 contas, 5 despesas fixas com ocorrências lançadas e ~130 transações em 7 meses.
+
 ```ts
-// src/db/seed/index.ts — idempotente; NUNCA em produção
+// src/db/seed/index.ts (trecho)
 const config = loadConfig();
 if (config.env === "production") throw new Error("Seed bloqueado em produção.");
-const { db } = createDb(config.databaseUrl);
-// 1) criar usuário de dev via Better Auth (não insira hash manualmente)
-// 2) inserir categorias padrão com onConflictDoNothing
+const app = createApp(config, { db });
+const result = await app.services.auth.api.signUpEmail({ body: DEMO_USER }); // nunca inserir hash manualmente
 ```
 
 ## Boas práticas e anti-padrões
