@@ -28,17 +28,28 @@ Antes de codar, defina: **recurso ↔ URI ↔ método HTTP ↔ resposta**.
 | POST | `/api/v1/categories` | criar categoria | 201 + `Location` |
 | PUT | `/api/v1/categories/:id` | substituir nome/cor/ícone | 200 |
 | DELETE | `/api/v1/categories/:id` | excluir categoria | 204 |
-| GET | `/api/v1/transactions?month=YYYY-MM&page=&pageSize=` | extrato do mês (RF06) | 200 |
+| GET | `/api/v1/value-sources` | listar contas e cartões com `currentBalance` | 200 |
+| GET | `/api/v1/value-sources/:id` | obter conta | 200 |
+| POST | `/api/v1/value-sources` | criar conta ou cartão | 201 + `Location` |
+| PUT | `/api/v1/value-sources/:id` | substituir conta (inclui ativar/desativar) | 200 |
+| GET | `/api/v1/transactions?month=YYYY-MM&page=&pageSize=` (+ filtros, ver 07) | extrato do mês com `meta.summary` (RF06) | 200 |
 | GET | `/api/v1/transactions/:id` | obter transação | 200 |
 | POST | `/api/v1/transactions` | lançar transação (RF03) | 201 + `Location` |
 | PUT | `/api/v1/transactions/:id` | substituir transação | 200 |
 | DELETE | `/api/v1/transactions/:id` | excluir transação | 204 |
 | GET | `/api/v1/recurrences` | listar recorrências | 200 |
+| GET | `/api/v1/recurrences/:id` | obter recorrência com a agenda dos próximos 6 meses | 200 |
 | POST | `/api/v1/recurrences` | criar e projetar despesa fixa (RF04) | 201 + `Location` |
+| PUT | `/api/v1/recurrences/:id` | substituir recorrência (inclui pausar/reativar) | 200 |
 | DELETE | `/api/v1/recurrences/:id` | encerrar recorrência | 204 |
-| GET | `/api/v1/dashboard/summary?month=YYYY-MM` | cards do dashboard (RF05) | 200 |
-| POST | `/api/v1/imports` | importar CSV (RF07) | 201 |
-| GET | `/api/v1/exports/transactions?month=YYYY-MM&format=csv` | exportar (RF07) | 200 |
+| GET | `/api/v1/dashboard/summary?month=YYYY-MM` | cards, gráficos e próximas fixas do dashboard (RF05) | 200 |
+| POST | `/api/v1/imports/preview` | ler CSV ou PDF do Nubank e devolver as linhas para revisão (RF07) | 200 |
+| POST | `/api/v1/imports` | confirmar a importação das linhas revisadas (RF07) | 201 + `Location` |
+| GET | `/api/v1/data-operations` | histórico de importações e exportações (RF07) | 200 |
+| GET | `/api/v1/exports/transactions?month=YYYY-MM&format=csv` | exportar CSV do mês (RF07) | 200 (`text/csv`) |
+| GET | `/api/v1/notifications` | listar notificações (`meta.unread`) | 200 |
+| PUT | `/api/v1/notifications/:id` | marcar como lida (`{ "status": "lida" }`) | 200 |
+| PUT | `/api/v1/notifications` | marcar todas como lidas (`{ "status": "lida" }`) | 200 |
 | `*` | `/api/auth/*` | Better Auth (ver 07) | — |
 
 Regras de URI: substantivos no plural, `kebab-case`, sem verbos. Coleção (`/categories`) e recurso (`/categories/:id`) são recursos **diferentes**. A notação `:id` é neutra; adapte à sintaxe do framework escolhido.
@@ -84,6 +95,40 @@ Recurso de outro usuário retorna **404**, nunca 403 (não revela existência).
   }
 }
 ```
+
+### Resumo do dashboard (RF05)
+
+`GET /api/v1/dashboard/summary?month=YYYY-MM` devolve tudo o que a tela inicial precisa numa chamada:
+
+```json
+{
+  "month": "2026-11",
+  "income": "6020.00",
+  "fixedExpenses": "2095.60",
+  "variableExpenses": "1740.97",
+  "paidIncome": "5420.00",
+  "paidExpenses": "2789.47",
+  "balance": "2630.53",
+  "forecast": "2183.43",
+  "byCategory": [
+    { "type": "despesa", "categoryId": "…", "total": "1299.90" },
+    { "type": "despesa", "categoryId": null, "total": "762.37" }
+  ],
+  "history": [{ "month": "2026-06", "income": "4500.00", "expense": "3120.10" }],
+  "upcoming": [
+    { "recurrenceId": "…", "description": "Streaming", "amount": "55.90", "categoryId": "…", "dueDate": "2026-11-22" }
+  ]
+}
+```
+
+| Campo | Regra |
+|---|---|
+| `income`, `fixedExpenses`, `variableExpenses` | todas as transações do mês (pendentes e efetivadas); fixas/variáveis pela `natureza` |
+| `paidIncome`, `paidExpenses`, `balance` | só **efetivadas**; `balance = paidIncome − paidExpenses` ("saldo do mês") |
+| `forecast` | `income − fixedExpenses − variableExpenses` ("saldo previsto", com pendentes) |
+| `byCategory` | total do mês por tipo e categoria; `categoryId: null` = "Sem categoria" (RNF02). Usado também pela tela de Categorias |
+| `history` | 6 meses terminando em `month`, em ordem cronológica (gráfico receitas × despesas) |
+| `upcoming` | até 3 recorrências ativas de despesa com vencimento de hoje em diante (mês atual ou seguinte) ainda não efetivadas |
 
 ### Sem estado (REST) e sessão
 
@@ -294,7 +339,7 @@ export const healthRoute: RouteDefinition = {
 # criar (esperado: 201 + Location)
 curl -i -X POST http://localhost:3001/api/v1/categories \
   -H "Content-Type: application/json" -b cookies.txt \
-  -d '{"name":"Alimentação","type":"expense","color":"#FF8800"}'
+  -d '{"name":"Alimentação","type":"despesa","color":"#FF8800"}'
 
 # id inválido → 400 ; uuid inexistente → 404 ; sem cookie → 401
 curl -i -b cookies.txt http://localhost:3001/api/v1/categories/abc

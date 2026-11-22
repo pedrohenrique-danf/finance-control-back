@@ -4,6 +4,7 @@ import { toErrorResponse } from "@/app/http/responses";
 import type { RequestContext, RouteDefinition } from "@/app/http/types";
 import { createDb, type Database } from "@/db/client";
 import { type Auth, createAuth, resolveUser } from "@/modules/auth";
+import { createDataExchangeRoutes, createImportPreviewService, extractPdfLines } from "@/modules/data-exchange";
 import { NotFoundError, UnauthenticatedError } from "@/shared/errors";
 import { createConsoleLogger, type Logger } from "@/shared/logger";
 
@@ -11,6 +12,8 @@ export interface AppOverrides {
   db?: Database;
   logger?: Logger;
   auth?: Auth;
+  /** Extração de texto de PDF (os testes injetam linhas prontas). */
+  extractPdfLines?: typeof extractPdfLines;
 }
 
 /** Application Factory (composition root): cria e injeta todas as dependências. */
@@ -20,9 +23,12 @@ export function createApp(config: AppConfig, overrides: AppOverrides = {}) {
   const db = overrides.db ?? (ownedDb as NonNullable<typeof ownedDb>).db;
   const auth = overrides.auth ?? createAuth({ db, config });
 
-  // Módulos de domínio (categories, transactions, recurrences, dashboard, data-exchange)
-  // serão compostos aqui, recebendo { db } e interfaces de outros módulos.
-  const routes: RouteDefinition[] = [healthRoute];
+  // Módulos de domínio (categories, transactions, recurrences, dashboard) serão compostos aqui,
+  // recebendo { db } e interfaces de outros módulos.
+  const importPreview = createImportPreviewService({
+    extractPdfLines: overrides.extractPdfLines ?? extractPdfLines,
+  });
+  const routes: RouteDefinition[] = [healthRoute, ...createDataExchangeRoutes(importPreview)];
 
   async function dispatch(route: RouteDefinition, req: Request, params: Record<string, string>): Promise<Response> {
     const requestId = crypto.randomUUID(); // sempre gerado no servidor

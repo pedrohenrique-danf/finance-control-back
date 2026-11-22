@@ -48,6 +48,7 @@ Versões fixadas no `package.json` (sem `^`/`latest`) e no `pnpm-lock.yaml`.
 | ORM / migrações                   | Drizzle ORM 0.45 + Drizzle Kit 0.31                                         |
 | Autenticação                      | Better Auth 1.7 (e-mail/senha e Google)                                     |
 | Validação                         | Zod 4                                                                       |
+| Leitura de PDF (RF07)             | pdfjs-dist 6.4 (só extração de texto, no servidor)                          |
 | Executor TS (dev, seed)           | tsx (`tsx watch`)                                                           |
 | Build de produção                 | tsup (bundle ESM em `dist/`)                                                |
 | Carregamento do `.env`            | flag nativa do Node (`--env-file-if-exists`), sem `dotenv`                  |
@@ -68,6 +69,9 @@ Versões fixadas no `package.json` (sem `^`/`latest`) e no `pnpm-lock.yaml`.
 | Carregamento do `.env`                    | `--env-file-if-exists` do Node                                          | 03      |
 | Porta local                               | `PORT` (padrão `3001`)                                                  | 02, 03  |
 | Branches do Neon                          | `production` (padrão) e `homologacao` — ver "Ambientes"                 | 03      |
+| CSV do RF07                               | Leitor próprio (sem biblioteca): padrão Excel pt-BR, `;`, dd/mm/aaaa      | 07      |
+| PDF do RF07                               | `pdfjs-dist`: fatura e extrato do Nubank, pré-visualização sem gravar     | 07      |
+| `status` da transação                     | `pendente` / `efetivada` (padrão), aceito no POST/PUT                     | 07      |
 
 ## Decisões pendentes (consolidado)
 
@@ -77,8 +81,8 @@ Pergunte ao responsável antes de assumir qualquer item abaixo.
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------- |
 | 1   | Reconciliar o ER com as tabelas do Better Auth (`usuarios`, `identidades_oauth`, `tokens_usuario`, sessão) | 06, 07              |
 | 2   | Banco/branch Neon dedicado para testes automatizados                                                       | 05                  |
-| 3   | Biblioteca de CSV para o RF07                                                                              | 06                  |
-| 4   | Valores de `status` da transação e limites de "data retroativa"                                            | 06, 07              |
+| 3   | Limites de "data retroativa" das transações                                                                | 06, 07              |
+| 4   | Materialização dos meses futuros das despesas fixas (job diário × na leitura)                             | 07                  |
 | 5   | Estratégia frontend↔backend: mesma origem (proxy/rewrites) ou origens distintas                            | 02, 07              |
 | 6   | Biblioteca de log                                                                                          | 03                  |
 | 7   | Hospedagem do backend                                                                                      | 03                  |

@@ -113,6 +113,7 @@ export const isoDateSchema = z
 
 export const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use o formato YYYY-MM.");
 
+// Enums do banco (src/shared/enums.ts): "receita" | "despesa", "fixa" | "variavel", "pendente" | "efetivada".
 export const createTransactionSchema = z
   .object({
     type: z.enum(transactionTypes),
@@ -120,25 +121,65 @@ export const createTransactionSchema = z
     description: z.string().trim().min(1).max(160),
     amount: moneySchema,
     date: isoDateSchema,
+    status: z.enum(transactionStatuses).default("efetivada"), // coluna status (default do banco)
     categoryId: z.string().uuid().nullable().optional(),
     valueSourceId: z.string().uuid().nullable().optional(),
   })
   .strict()
   .superRefine((v, ctx) => {
-    if (v.type === "expense" && !v.nature) {
+    // espelha ck_transacoes_natureza
+    if (v.type === "despesa" && !v.nature) {
       ctx.addIssue({ code: "custom", path: ["nature"], message: "Informe se a despesa é fixa ou variável." });
     }
-    if (v.type === "income" && v.nature) {
+    if (v.type === "receita" && v.nature) {
       ctx.addIssue({ code: "custom", path: ["nature"], message: "Receitas não têm natureza." });
     }
   });
 
-export const listTransactionsQuerySchema = z.object({
-  month: monthSchema,
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
-});
+/** PUT substitui o recurso inteiro: mesmo corpo da criação. `origin` e `recurrenceId` não são editáveis. */
+export const updateTransactionSchema = createTransactionSchema;
+
+const uuidList = z
+  .string()
+  .transform((v) => v.split(",").filter(Boolean))
+  .pipe(z.array(z.string().uuid()).max(50));
+
+/** Extrato (RF06). Sem `from`/`to`, filtra pelo mês; com período, o mês é ignorado. */
+export const listTransactionsQuerySchema = z
+  .object({
+    month: monthSchema.optional(),
+    from: isoDateSchema.optional(),
+    to: isoDateSchema.optional(),
+    q: z.string().trim().max(100).optional(), // busca na descrição, sem diferenciar acentos/maiúsculas
+    type: z.enum(transactionTypes).optional(),
+    nature: z.enum(transactionNatures).optional(),
+    status: z.enum(transactionStatuses).optional(),
+    categoryIds: uuidList.optional(), // CSV: ?categoryIds=uuid1,uuid2
+    valueSourceIds: uuidList.optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .refine((v) => v.month || v.from || v.to, { path: ["month"], message: "Informe o mês ou um período." })
+  .refine((v) => !v.from || !v.to || v.from <= v.to, { path: ["to"], message: "Período inválido." });
 ```
+
+Resposta de `GET /transactions` (ordem: data desc; no mesmo dia, o último lançado primeiro):
+
+```json
+{
+  "data": [{ "id": "…", "type": "despesa", "nature": "variavel", "description": "Mercado", "amount": "89.90",
+             "date": "2026-11-05", "status": "efetivada", "origin": "manual",
+             "categoryId": "…", "valueSourceId": "…", "recurrenceId": null }],
+  "meta": {
+    "page": 1, "pageSize": 20, "total": 39, "totalPages": 2,
+    "summary": { "income": "6020.00", "expense": "3836.57", "balance": "2183.43" },
+    "dayTotals": { "2026-11-05": "-89.90" }
+  }
+}
+```
+
+`summary` e `dayTotals` consideram **todo o conjunto filtrado** (não só a página): o extrato mostra entradas, saídas,
+saldo e o saldo de cada dia sem precisar baixar todas as páginas.
 
 ### Categorias: schemas
 
@@ -157,6 +198,172 @@ export const updateCategorySchema = createCategorySchema.omit({ type: true }); /
 export type CreateCategoryInput = z.output<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.output<typeof updateCategorySchema>;
 ```
+
+### Contas e cartões (fontes_valor): schemas
+
+```ts
+// src/modules/value-sources/value-sources.schemas.ts
+export const valueSourceInputSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80), // único por usuário (uq_fontes_valor_usuario_nome → 409)
+    type: z.enum(valueSourceTypes),
+    institution: z.string().trim().max(80).nullable().optional(),
+    initialBalance: z.string().regex(/^-?\d{1,12}(\.\d{1,2})?$/, "Use ponto decimal (ex.: -150.00)."), // pode ser negativo
+    active: z.boolean().default(true),
+  })
+  .strict();
+// POST e PUT usam o mesmo corpo (PUT substitui o recurso inteiro).
+```
+
+Resposta (`GET /value-sources` → `{ data: [...] }`; `GET /value-sources/:id` → objeto):
+
+```json
+{ "id": "…", "name": "Nubank", "type": "conta_corrente", "institution": "Nubank",
+  "initialBalance": "2350.00", "active": true, "currentBalance": "15923.64" }
+```
+
+`currentBalance` = saldo inicial + receitas − despesas **efetivadas** da conta, calculado no backend.
+Sem `DELETE` no MVP: a conta é desativada (`active: false`); excluir manteria as transações com
+`fonte_valor_id = NULL` (RNF02) e fica para quando houver a necessidade.
+
+### Despesas fixas (recorrências, RF04): schemas e regras
+
+```ts
+// src/modules/recurrences/recurrences.schemas.ts
+const recurrenceFields = {
+  description: z.string().trim().min(1).max(160),
+  amount: moneySchema,
+  dueDay: z.number().int().min(1).max(31), // dia 29–31 vira o último dia em meses curtos
+  startDate: isoDateSchema,
+  endDate: isoDateSchema.nullable(), // null = sem término
+  categoryId: z.string().uuid().nullable().optional(),
+  valueSourceId: z.string().uuid().nullable().optional(),
+};
+
+export const createRecurrenceSchema = z
+  .object({ type: z.enum(transactionTypes).default("despesa"), ...recurrenceFields })
+  .strict()
+  .refine((v) => !v.endDate || v.endDate >= v.startDate, { path: ["endDate"], message: "Fim antes do início." });
+
+/** PUT: tipo imutável (como em categorias); `active` pausa/reativa. */
+export const updateRecurrenceSchema = z
+  .object({ ...recurrenceFields, active: z.boolean() })
+  .strict()
+  .refine((v) => !v.endDate || v.endDate >= v.startDate, { path: ["endDate"], message: "Fim antes do início." });
+```
+
+Regras (serviço):
+
+- **Criar (POST)** grava a recorrência e **materializa** as ocorrências de `startDate` até o fim do mês corrente
+  (`materialize`, doc 06): transações `pendente`, `origem = "recorrencia"`, natureza `fixa` (despesa) ou `null`
+  (receita). Meses seguintes são materializados conforme o tempo passa (**[PENDENTE DE DEFINIÇÃO]**: job diário ×
+  materialização sob demanda na leitura). O índice único (`recorrencia_id`, `data`) torna tudo idempotente.
+- **Editar (PUT)** vale para as ocorrências **ainda não materializadas**; lançamentos existentes não mudam
+  (cada um é editado no extrato). Pausada (`active: false`) não materializa nem aparece em `upcoming`.
+- **Encerrar (DELETE)** remove a recorrência; as transações já lançadas ficam no extrato com
+  `recorrencia_id = NULL` (RNF02).
+- **Categoria** do tipo diferente da recorrência → 400 em `categoryId` (mesma regra das transações).
+
+Resposta de `GET /recurrences/:id` (a lista devolve os mesmos campos, sem `schedule`):
+
+```json
+{
+  "id": "…", "type": "despesa", "description": "Aluguel", "amount": "1200.00", "dueDay": 5,
+  "startDate": "2026-05-05", "endDate": null, "active": true, "categoryId": "…", "valueSourceId": "…",
+  "schedule": [
+    { "month": "2026-11", "dueDate": "2026-11-05", "status": "efetivada", "transactionId": "…" },
+    { "month": "2026-12", "dueDate": "2026-12-05", "status": "prevista", "transactionId": null }
+  ]
+}
+```
+
+`schedule`: 6 meses a partir do mês corrente que a recorrência cobre. `status` = situação da ocorrência
+materializada (`efetivada`/`pendente`) ou `prevista` quando ainda não há transação.
+
+#### "Repetir todo mês" ao lançar uma transação
+
+`POST /transactions` aceita o campo opcional `repeatMonthly: { dueDay, endDate }`. O backend, numa transação de banco:
+cria a recorrência com `startDate = date` e os dados da transação, grava a transação com `recorrenciaId` e
+`origem = "recorrencia"` (mantendo o `status` informado) e materializa o restante como no POST de recorrências.
+O índice único evita duplicar a ocorrência da data lançada.
+
+### Importar e exportar (RF07)
+
+**Formato CSV** (importação e exportação usam o mesmo arquivo), padrão Excel pt-BR, UTF-8:
+
+```text
+data;descricao;valor;tipo;natureza;situacao;categoria;conta
+05/11/2026;Salário estágio;4.200,00;receita;;efetivada;Salário;Nubank
+02/11/2026;Mercado Pão de Açúcar;214,37;despesa;variavel;efetivada;Alimentação;Cartão Inter
+```
+
+Separador `;`; data `dd/mm/aaaa` (aceita `AAAA-MM-DD` na importação); valor positivo `1.234,56`; `tipo`
+`receita|despesa`; `natureza` `fixa|variavel` (vazia = variável em despesa, sempre vazia em receita);
+`situacao` `efetivada|pendente` (vazia = efetivada; aceita "pago"/"recebido"); `categoria` e `conta` por nome
+(opcionais). Obrigatórias: `data`, `descricao`, `valor`, `tipo`. Até 2.000 linhas e 5 MB.
+
+**PDF do Nubank** (fatura do cartão e extrato da conta), texto extraído com `pdfjs-dist` no backend
+(`src/modules/data-exchange`). Fatura: compras viram despesas variáveis; estornos (valor negativo) viram receitas;
+o pagamento da fatura vem com `suggestedSkip: true` (já aparece no extrato da conta). Extrato: o bloco
+"Total de entradas"/"Total de saídas" de cada dia define receita/despesa; a descrição junta o tipo do lançamento
+e a contraparte ("Transferência recebida pelo Pix — FULANO").
+
+**Fluxo em duas etapas:**
+
+1. `POST /imports/preview` (multipart, campo `file`) → `{ source, fileName, period, rows[], errors[] }`, sem gravar.
+   `source`: `csv | nubank_fatura | nubank_extrato`; cada linha traz `date`, `description`, `amount`, `type`,
+   `nature`, `status`, `categoryName`, `accountName`, `installment`, `suggestedSkip`, `note`.
+2. `POST /imports` com as linhas revisadas (o usuário escolhe conta e categorias e desmarca o que não quer):
+
+```ts
+export const confirmImportSchema = z
+  .object({
+    fileName: z.string().trim().min(1).max(255),
+    format: z.enum(dataFormats), // "csv" | "pdf"
+    rows: z
+      .array(
+        z.object({
+          date: isoDateSchema,
+          description: z.string().trim().min(1).max(160),
+          amount: moneySchema,
+          type: z.enum(transactionTypes),
+          nature: z.enum(transactionNatures).nullable(),
+          status: z.enum(transactionStatuses),
+          categoryId: z.string().uuid().nullable(),
+          valueSourceId: z.string().uuid().nullable(),
+        }),
+      )
+      .min(1)
+      .max(2000),
+    /** Erros da pré-visualização, gravados em importacao_erros para o histórico. */
+    errors: z
+      .array(z.object({ line: z.number().int(), field: z.string().nullable(), message: z.string(), content: z.string().nullable() }))
+      .max(2000),
+  })
+  .strict();
+```
+
+O backend cria a operação (`tipo = importacao`, `status = concluida` ou `concluida_com_erros`, contagem de linhas),
+as transações com `origem = "importacao"` e `operacao_dados_id`, grava os erros e gera a notificação
+`importacao_concluida`. Resposta 201: a operação (mesmo formato do histórico).
+
+**Histórico** `GET /data-operations` → `{ data: [{ id, type, format, status, fileName, periodStart, periodEnd,
+totalRows, successRows, errorRows, errorMessage, createdAt, completedAt }] }`, mais recente primeiro.
+
+**Exportação** `GET /exports/transactions?month=YYYY-MM&format=csv` → `text/csv; charset=utf-8` com BOM (o Excel
+reconhece acentos), `Content-Disposition: attachment; filename="financecontrol-YYYY-MM.csv"`, no formato acima;
+registra a operação (`tipo = exportacao`) e gera a notificação `exportacao_pronta`.
+
+### Notificações
+
+Geradas pelo backend a partir das ações (MVP): lançar transação, criar categoria, conta ou despesa fixa
+(`tipo = sistema`), concluir importação (`importacao_concluida`) e exportação (`exportacao_pronta`). Canal `app`;
+criadas com `status = enviada` e marcadas como `lida` pelo usuário. Lembretes e vencimentos
+(`lembrete_registro`, `vencimento_despesa`) e preferências por canal ficam para depois do MVP.
+
+`GET /notifications?page=&pageSize=` → `{ data: [{ id, type, title, message, status, createdAt, readAt,
+transactionId, recurrenceId }], meta: { page, pageSize, total, unread } }`, mais recente primeiro.
+`PUT /notifications/:id` e `PUT /notifications` (todas) com `{ "status": "lida" }`.
 
 ### Regra de negócio no serviço (dependência por interface)
 

@@ -15,6 +15,13 @@
       "when": 1794090173821,
       "tag": "0001_comentarios",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795302518199,
+      "tag": "0002_formato_pdf",
+      "breakpoints": true
     }
   ]
 }

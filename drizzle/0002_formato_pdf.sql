@@ -1,0 +1,2 @@
+ALTER TABLE "importacoes_exportacoes" DROP CONSTRAINT "ck_importacoes_exportacoes_formato";--> statement-breakpoint
+ALTER TABLE "importacoes_exportacoes" ADD CONSTRAINT "ck_importacoes_exportacoes_formato" CHECK ("importacoes_exportacoes"."formato" in ('csv', 'xlsx', 'pdf'));

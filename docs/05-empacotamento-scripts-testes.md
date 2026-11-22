@@ -134,14 +134,14 @@ describe("categories service", () => {
 
   it("cria e lista apenas as categorias do usuário", async () => {
     const service = setup();
-    await service.create("user-a", { name: "Lazer", type: "expense", color: "#00AAFF" });
+    await service.create("user-a", { name: "Lazer", type: "despesa", color: "#00AAFF" });
     expect(await service.list("user-a")).toHaveLength(1);
     expect(await service.list("user-b")).toHaveLength(0);
   });
 
   it("retorna NotFound ao ler categoria de outro usuário", async () => {
     const service = setup();
-    const created = await service.create("user-a", { name: "Lazer", type: "expense", color: "#00AAFF" });
+    const created = await service.create("user-a", { name: "Lazer", type: "despesa", color: "#00AAFF" });
     await expect(service.get("user-b", created.id)).rejects.toBeInstanceOf(NotFoundError);
   });
 });
@@ -168,9 +168,9 @@ it("mantém a transação ao excluir a categoria (ON DELETE SET NULL)", async ()
   const categories = createCategoriesRepository(db);
   const transactions = createTransactionsRepository(db);
 
-  const category = await categories.insert(user.id, { name: "Mercado", type: "expense", color: "#FF0000" });
+  const category = await categories.insert(user.id, { name: "Mercado", type: "despesa", color: "#FF0000" });
   const tx = await transactions.insert(user.id, {
-    type: "expense", nature: "variable", description: "Compra", amount: "89.90",
+    type: "despesa", nature: "variavel", description: "Compra", amount: "89.90",
     date: "2026-11-05", categoryId: category.id, origin: "manual", status: "paid",
   });
 
@@ -199,7 +199,7 @@ test("fluxo de categorias: 401, 201, 400, 404, 204", async ({ request }) => {
   // o cookie de sessão fica no contexto `request` (confirmar na versão instalada)
 
   const created = await request.post("/api/v1/categories", {
-    data: { name: "Lazer", type: "expense", color: "#00AAFF" },
+    data: { name: "Lazer", type: "despesa", color: "#00AAFF" },
   });
   expect(created.status()).toBe(201);
   const category = await created.json();
