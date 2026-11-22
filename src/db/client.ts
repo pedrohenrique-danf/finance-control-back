@@ -4,7 +4,8 @@ import * as schema from "./schema";
 
 /** Cria o pool e o cliente Drizzle (node-postgres). Sem singleton: chamado por createApp. */
 export function createDb(databaseUrl: string) {
-  const pool = new Pool({ connectionString: databaseUrl, max: 10 });
+  // Conexões ociosas ficam abertas por 5 min: reabrir custa um handshake TLS com o Neon a cada rajada.
+  const pool = new Pool({ connectionString: databaseUrl, max: 10, idleTimeoutMillis: 300_000 });
   const db = drizzle({ client: pool, schema });
   return { db, close: () => pool.end() };
 }
