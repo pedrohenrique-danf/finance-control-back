@@ -9,7 +9,7 @@ import type { PdfLine } from "./import.types";
 import { createImportPreviewService } from "./import-preview.service";
 
 export { buildTransactionsCsv } from "./exchange.service";
-export type { ImportPreview, ImportRow, ImportRowError, ImportSource } from "./import.types";
+export type { ImportPreview, ImportRow, ImportRowError, ImportSource, StatementKind } from "./import.types";
 export { createImportPreviewService, type ImportPreviewService } from "./import-preview.service";
 export { extractPdfLines } from "./pdf/extract-lines";
 

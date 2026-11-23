@@ -1,7 +1,17 @@
 import type { TransactionNature, TransactionStatus, TransactionType } from "@/shared/enums";
 
-/** Origem reconhecida do arquivo importado. */
-export type ImportSource = "csv" | "nubank_fatura" | "nubank_extrato";
+/**
+ * Leitor que reconheceu o arquivo importado.
+ * - csv: planilha no formato do próprio app (o mesmo da exportação);
+ * - csv_banco: CSV exportado por um banco (colunas reconhecidas por nome, ver parsers/bank-csv.ts);
+ * - ofx: arquivo OFX/QFX, padrão aceito pela maioria dos bancos;
+ * - nubank_fatura / nubank_extrato: PDFs do Nubank.
+ */
+export const importSources = ["csv", "csv_banco", "ofx", "nubank_fatura", "nubank_extrato"] as const;
+export type ImportSource = (typeof importSources)[number];
+
+/** Tipo de documento: extrato de conta ou fatura de cartão (define a conta sugerida na revisão). */
+export type StatementKind = "conta" | "cartao";
 
 /** Uma linha lida do arquivo, já normalizada para o contrato (dinheiro em string decimal, data ISO). */
 export interface ImportRow {
@@ -35,6 +45,12 @@ export interface ImportRowError {
 
 export interface ImportPreview {
   source: ImportSource;
+  /** Formato gravado no histórico (importacoes_exportacoes.formato). */
+  format: "csv" | "pdf" | "ofx";
+  /** Banco identificado no arquivo ("Nubank", "Itaú"...); null quando não deu para saber. */
+  institution: string | null;
+  /** Extrato de conta ou fatura de cartão; null quando não deu para saber. */
+  kind: StatementKind | null;
   fileName: string;
   period: { start: string; end: string } | null;
   rows: ImportRow[];
@@ -47,4 +63,11 @@ export interface PdfLine {
   /** Distância do topo da página (cresce para baixo). */
   top: number;
   cells: Array<{ x: number; width: number; text: string }>;
+}
+
+/** Resultado de um leitor: as linhas e, quando o arquivo informa, o período. */
+export interface ParsedStatement {
+  period: { start: string; end: string } | null;
+  rows: ImportRow[];
+  errors: ImportRowError[];
 }
