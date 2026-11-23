@@ -1,24 +1,12 @@
 import { sql } from "drizzle-orm";
-import {
-  boolean,
-  check,
-  index,
-  pgTable,
-  primaryKey,
-  smallint,
-  text,
-  time,
-  timestamp,
-  uuid,
-  varchar,
-} from "drizzle-orm/pg-core";
+import { boolean, check, index, pgTable, primaryKey, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 import { notificationChannels, notificationStatuses, notificationTypes } from "@/shared/enums";
 import { users } from "./auth";
 import { createdAt, inList, updatedAt } from "./helpers";
 import { recurrences } from "./recurrences";
 import { transactions } from "./transactions";
 
-/** Fila e histórico de avisos (lembretes de registro, vencimentos etc.). Pós-MVP: só estrutura. */
+/** Avisos gerados pelas ações do usuário (lançar, criar categoria/conta/fixa, importar, exportar), só no app. */
 export const notifications = pgTable(
   "notificacoes",
   {
@@ -49,7 +37,7 @@ export const notifications = pgTable(
   ],
 );
 
-/** Quais avisos o usuário deseja receber, por qual canal e em que horário. */
+/** Quais avisos o usuário quer receber. Sem linha para o tipo = ativo (padrão). */
 export const notificationPreferences = pgTable(
   "preferencias_notificacao",
   {
@@ -57,16 +45,13 @@ export const notificationPreferences = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     type: varchar("tipo", { length: 25 }).notNull(),
-    channel: varchar("canal", { length: 10 }).notNull(),
+    channel: varchar("canal", { length: 10 }).notNull().default("app"),
     active: boolean("ativa").notNull().default(true),
-    preferredTime: time("horario_preferido").notNull().default("20:00"),
-    daysInAdvance: smallint("antecedencia_dias").notNull().default(1),
     updatedAt: updatedAt(),
   },
   (t) => [
     primaryKey({ name: "pk_preferencias_notificacao", columns: [t.userId, t.type, t.channel] }),
     check("ck_preferencias_notificacao_tipo", sql`${t.type} in (${inList(notificationTypes)})`),
     check("ck_preferencias_notificacao_canal", sql`${t.channel} in (${inList(notificationChannels)})`),
-    check("ck_preferencias_notificacao_antecedencia", sql`${t.daysInAdvance} between 0 and 30`),
   ],
 );

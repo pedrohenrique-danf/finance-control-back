@@ -17,8 +17,17 @@ Definir a integração do **Better Auth** no backend, a proteção de rotas (pad
 
 - Better Auth roda **no backend**. Endpoints em `/api/auth/*` são servidos por `auth.handler(request)`.
 - Métodos: e-mail/senha e Google (Google habilitado só se as credenciais existirem).
+- **Recuperação de senha:** `POST /api/auth/request-password-reset` → o backend envia o e-mail (`Mailer`, SMTP
+  configurado em 03) com o link do Better Auth (`/api/auth/reset-password/:token`), que valida o token e redireciona
+  para a tela do front (`/reset-password?token=…`, ou `?error=INVALID_TOKEN`). Link válido por 60 minutos e de uso
+  único; trocar a senha encerra todas as sessões (`revokeSessionsOnPasswordReset`). O envio não é aguardado: a
+  resposta é igual (e no mesmo tempo) para e-mail com ou sem conta. Sem SMTP (só dev/test), o link vai para o log
+  (`email_not_sent_dev`); em produção o SMTP é obrigatório.
 - **Não implemente hash de senha**: o Better Auth já faz (RNF03). Nunca armazene senha em claro nem crie coluna de hash própria.
 - IDs em UUID: configure o Better Auth para gerar UUID e use colunas `uuid` (ver 06).
+- **Dados iniciais do usuário novo:** o hook `databaseHooks.user.create.after` (cadastro por e-mail ou primeiro login
+  com Google) cria as categorias padrão do protótipo e a conta "Carteira" — o lançamento de transação exige ambas.
+  Falha nesse passo vai para o log e não impede o cadastro.
 - O schema do Better Auth vive no schema Drizzle (**uma** fonte de verdade); a reconciliação com o ER está **decidida** (ver 06): `usuarios`, `sessoes`, `contas`, `verificacoes`.
 - Estratégia frontend↔backend: **[PENDENTE DE DEFINIÇÃO]**. Recomendação: **mesma origem** (o frontend repassa `/api/*` ao backend por proxy/rewrites). Isso evita cookies de terceiros e simplifica CORS. Com origens distintas, é preciso cookie `SameSite=None; Secure`, `trustedOrigins` e CORS com credenciais.
 
@@ -159,7 +168,12 @@ export const listTransactionsQuerySchema = z
     page: z.coerce.number().int().min(1).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
   })
-  .refine((v) => v.month || v.from || v.to, { path: ["month"], message: "Informe o mês ou um período." })
+  .strict()
+  // só a conta (sem mês) serve ao detalhe da conta: "últimas transações" em qualquer data
+  .refine((v) => v.month || v.from || v.to || v.valueSourceIds?.length, {
+    path: ["month"],
+    message: "Informe o mês, um período ou uma conta.",
+  })
   .refine((v) => !v.from || !v.to || v.from <= v.to, { path: ["to"], message: "Período inválido." });
 ```
 
@@ -256,10 +270,16 @@ Regras (serviço):
 
 - **Criar (POST)** grava a recorrência e **materializa** as ocorrências de `startDate` até o fim do mês corrente
   (`materialize`, doc 06): transações `pendente`, `origem = "recorrencia"`, natureza `fixa` (despesa) ou `null`
-  (receita). Meses seguintes são materializados conforme o tempo passa (**[PENDENTE DE DEFINIÇÃO]**: job diário ×
-  materialização sob demanda na leitura). O índice único (`recorrencia_id`, `data`) torna tudo idempotente.
+  (receita). O índice único (`recorrencia_id`, `data`) torna tudo idempotente.
+- **Meses seguintes: materialização sob demanda** (adotada na implementação; **aguarda confirmação** do responsável,
+  item 4 do README). Antes das leituras que mostram transações (`GET /transactions`, `/dashboard/summary`,
+  `/recurrences/:id` e a exportação), `materializeDue` lança os meses que faltam até o mês corrente. A coluna
+  `recorrencias.ultimo_mes_materializado` (migração `0003`) guarda até onde já foi lançado; a próxima rodada continua
+  do mês seguinte, então **uma ocorrência excluída pelo usuário não volta**. Sem job agendado nem infraestrutura extra.
+  "Hoje" e "mês corrente" usam o fuso `America/Sao_Paulo` (`shared/dates.ts`).
 - **Editar (PUT)** vale para as ocorrências **ainda não materializadas**; lançamentos existentes não mudam
-  (cada um é editado no extrato). Pausada (`active: false`) não materializa nem aparece em `upcoming`.
+  (cada um é editado no extrato). Pausada (`active: false`) não materializa nem aparece em `upcoming`; ao reativar,
+  os meses da pausa até o corrente são lançados.
 - **Encerrar (DELETE)** remove a recorrência; as transações já lançadas ficam no extrato com
   `recorrencia_id = NULL` (RNF02).
 - **Categoria** do tipo diferente da recorrência → 400 em `categoryId` (mesma regra das transações).
@@ -285,7 +305,8 @@ materializada (`efetivada`/`pendente`) ou `prevista` quando ainda não há trans
 `POST /transactions` aceita o campo opcional `repeatMonthly: { dueDay, endDate }`. O backend, numa transação de banco:
 cria a recorrência com `startDate = date` e os dados da transação, grava a transação com `recorrenciaId` e
 `origem = "recorrencia"` (mantendo o `status` informado) e materializa o restante como no POST de recorrências.
-O índice único evita duplicar a ocorrência da data lançada.
+A transação lançada **é a ocorrência do próprio mês** (mesmo que `dueDay` seja outro dia): a materialização começa
+no mês seguinte. Despesa vira natureza `fixa`. `endDate` anterior à data → 400 em `repeatMonthly.endDate`.
 
 ### Importar e exportar (RF07)
 
@@ -345,7 +366,8 @@ export const confirmImportSchema = z
 
 O backend cria a operação (`tipo = importacao`, `status = concluida` ou `concluida_com_erros`, contagem de linhas),
 as transações com `origem = "importacao"` e `operacao_dados_id`, grava os erros e gera a notificação
-`importacao_concluida`. Resposta 201: a operação (mesmo formato do histórico).
+`importacao_concluida`. Resposta 201: a operação (mesmo formato do histórico), com `Location: /api/v1/data-operations`
+(não há `GET` por id no MVP).
 
 **Histórico** `GET /data-operations` → `{ data: [{ id, type, format, status, fileName, periodStart, periodEnd,
 totalRows, successRows, errorRows, errorMessage, createdAt, completedAt }] }`, mais recente primeiro.
@@ -356,14 +378,20 @@ registra a operação (`tipo = exportacao`) e gera a notificação `exportacao_p
 
 ### Notificações
 
-Geradas pelo backend a partir das ações (MVP): lançar transação, criar categoria, conta ou despesa fixa
-(`tipo = sistema`), concluir importação (`importacao_concluida`) e exportação (`exportacao_pronta`). Canal `app`;
-criadas com `status = enviada` e marcadas como `lida` pelo usuário. Lembretes e vencimentos
-(`lembrete_registro`, `vencimento_despesa`) e preferências por canal ficam para depois do MVP.
+**Só avisos de ações do usuário, dentro do app** (decisão do responsável): não há lembretes agendados, vencimentos,
+e-mail ou push. Um tipo por ação: `transacao_registrada` (inclui "repetir todo mês"), `recorrencia_criada`,
+`categoria_criada`, `conta_criada`, `importacao_concluida` e `exportacao_pronta`. Canal único `app`; criadas com
+`status = enviada` e marcadas como `lida` pelo usuário.
+
+**Preferências:** `GET /notification-preferences` → `{ data: [{ type, active }] }` com todos os tipos, na ordem acima.
+`PUT /notification-preferences/:type` com `{ "active": boolean }` (idempotente; tipo desconhecido → 400) devolve
+`{ type, active }`. Sem linha gravada, o tipo está ativo. Tipo desligado: a ação acontece normalmente e o aviso não é
+gravado (a checagem fica no próprio `INSERT ... WHERE NOT EXISTS`, uma ida ao banco).
 
 `GET /notifications?page=&pageSize=` → `{ data: [{ id, type, title, message, status, createdAt, readAt,
 transactionId, recurrenceId }], meta: { page, pageSize, total, unread } }`, mais recente primeiro.
-`PUT /notifications/:id` e `PUT /notifications` (todas) com `{ "status": "lida" }`.
+`PUT /notifications/:id` (devolve a notificação) e `PUT /notifications` (todas; devolve `{ "updated": n }`) com
+`{ "status": "lida" }`. A gravação é de melhor esforço: falha ao notificar vai para o log e não desfaz a ação.
 
 ### Regra de negócio no serviço (dependência por interface)
 

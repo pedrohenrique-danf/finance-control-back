@@ -19,14 +19,17 @@ export const dataOperationTypes = ["importacao", "exportacao"] as const;
 export const dataFormats = ["csv", "xlsx", "pdf"] as const;
 export const dataOperationStatuses = ["pendente", "processando", "concluida", "concluida_com_erros", "falhou"] as const;
 
+/** Uma por ação do usuário dentro do app; o usuário escolhe quais quer receber (preferencias_notificacao). */
 export const notificationTypes = [
-  "lembrete_registro",
-  "vencimento_despesa",
+  "transacao_registrada",
+  "recorrencia_criada",
+  "categoria_criada",
+  "conta_criada",
   "importacao_concluida",
   "exportacao_pronta",
-  "sistema",
 ] as const;
-export const notificationChannels = ["app", "email", "push"] as const;
+/** Só avisos dentro do app: não há envio por e-mail ou push. */
+export const notificationChannels = ["app"] as const;
 export const notificationStatuses = ["pendente", "enviada", "lida", "falha"] as const;
 
 export type TransactionType = (typeof transactionTypes)[number];

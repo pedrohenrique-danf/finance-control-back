@@ -9,7 +9,7 @@ Definir como o schema do banco é modelado (Drizzle), como as tabelas evoluem (m
 ## Escopo
 
 **Cobre:** schema, relações, integridade, cliente de banco, repositórios, consultas agregadas, projeção de recorrências (RF04), fluxo de migração, seed, testes de integridade.
-**Não cobre:** configuração do Better Auth (07). Tabelas de notificações (`notificacoes`, `preferencias_notificacao`) **já existem no banco** (migração `0000_schema_inicial`), mas a funcionalidade está fora do MVP: não crie módulos/rotas para elas agora.
+**Não cobre:** configuração do Better Auth (07). Tabelas de notificações (`notificacoes`, `preferencias_notificacao`): avisos das ações do usuário e quais tipos ele quer receber (módulo `notifications`, regras em 07). A migração `0004_notificacoes_por_acao` trocou os tipos genéricos pelos tipos por ação e removeu `horario_preferido`/`antecedencia_dias` (sem lembretes agendados).
 
 ## Regras e padrões
 
@@ -57,7 +57,7 @@ Definir como o schema do banco é modelado (Drizzle), como as tabelas evoluem (m
 | `transacoes` | `transactions` | RF03, RF05, RF06 |
 | `recorrencias` | `recurrences` | RF04 |
 | `importacoes_exportacoes`, `importacao_erros` | `dataOperations`, `importErrors` | RF07 |
-| `notificacoes`, `preferencias_notificacao` (só estrutura, pós-MVP) | `notifications`, `notificationPreferences` | — |
+| `notificacoes`, `preferencias_notificacao` | `notifications`, `notificationPreferences` | — |
 
 Valores de domínio (CHECK constraints) são em pt-BR, iguais ao modelo físico (`'receita'`, `'despesa'`, `'fixa'`, `'variavel'`...), e vêm de `src/shared/enums.ts`.
 
@@ -327,6 +327,10 @@ export function projectDates(input: {
 
 ### Projeção de despesa fixa (RF04) em um único `INSERT`
 
+Implementação real: `src/modules/recurrences/recurrences.repository.ts` (`materialize`) e a função pura
+`pendingOccurrences` (`occurrences.ts`), que calcula as datas a partir de `ultimo_mes_materializado` (migração
+`0003`) em vez de um número fixo de meses. O exemplo abaixo mostra a ideia central (um `INSERT` idempotente).
+
 ```ts
 async function materialize(db: Database, recurrence: Recurrence, months: number) {
   const dates = projectDates({
@@ -348,13 +352,17 @@ async function materialize(db: Database, recurrence: Recurrence, months: number)
 
 ### Seed (substitui o `flask shell` para dados de dev)
 
+`pnpm db:seed` (idempotente; **nunca** em produção) cria o usuário `demo@financecontrol.local` (senha
+`Demo-FinanceControl-2026`) **pelo Better Auth** — o hook de cadastro gera as categorias padrão e a Carteira — e, se
+ele ainda não tem transações, grava a demonstração do protótipo relativa ao mês atual (`src/db/seed/demo-data.ts`):
+3 contas, 5 despesas fixas com ocorrências lançadas e ~130 transações em 7 meses.
+
 ```ts
-// src/db/seed/index.ts — idempotente; NUNCA em produção
+// src/db/seed/index.ts (trecho)
 const config = loadConfig();
 if (config.env === "production") throw new Error("Seed bloqueado em produção.");
-const { db } = createDb(config.databaseUrl);
-// 1) criar usuário de dev via Better Auth (não insira hash manualmente)
-// 2) inserir categorias padrão com onConflictDoNothing
+const app = createApp(config, { db });
+const result = await app.services.auth.api.signUpEmail({ body: DEMO_USER }); // nunca inserir hash manualmente
 ```
 
 ## Boas práticas e anti-padrões

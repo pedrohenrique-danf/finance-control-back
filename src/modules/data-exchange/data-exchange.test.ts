@@ -283,6 +283,7 @@ describe("rota POST /api/v1/imports/preview", () => {
     betterAuthSecret: "x".repeat(32),
     betterAuthUrl: "http://localhost:3001",
     google: undefined,
+    mail: undefined,
     corsOrigins: [],
     logLevel: "error",
   };

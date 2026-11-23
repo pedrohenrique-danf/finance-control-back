@@ -23,6 +23,11 @@ export const recurrences = pgTable(
     startDate: date("data_inicio", { mode: "string" }).notNull(),
     endDate: date("data_fim", { mode: "string" }), // NULL = sem término
     active: boolean("ativa").notNull().default(true),
+    /**
+     * 1º dia do último mês cujas ocorrências já foram lançadas em `transacoes`. A materialização sob demanda
+     * continua do mês seguinte, então uma ocorrência excluída pelo usuário não volta (RF04).
+     */
+    lastMaterializedMonth: date("ultimo_mes_materializado", { mode: "string" }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
