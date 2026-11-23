@@ -8,7 +8,7 @@ import {
   transactionStatuses,
   transactionTypes,
 } from "@/shared/enums";
-import { isoDateSchema, monthSchema, moneySchema } from "@/shared/schemas";
+import { moneySchema, monthSchema, transactionDateSchema } from "@/shared/schemas";
 import { MAX_ROWS } from "./parsers/csv";
 
 /** POST /imports: linhas revisadas pelo usuário (docs/07, "Fluxo em duas etapas"). */
@@ -20,7 +20,7 @@ export const confirmImportSchema = z
       .array(
         z
           .object({
-            date: isoDateSchema,
+            date: transactionDateSchema,
             description: z.string().trim().min(1).max(160),
             amount: moneySchema,
             type: z.enum(transactionTypes),

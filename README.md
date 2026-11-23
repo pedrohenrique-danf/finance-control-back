@@ -80,12 +80,11 @@ Pergunte ao responsável antes de assumir qualquer item abaixo.
 | #   | Decisão                                                                                                    | Arquivo relacionado |
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------- |
 | 1   | Reconciliar o ER com as tabelas do Better Auth (`usuarios`, `identidades_oauth`, `tokens_usuario`, sessão) | 06, 07              |
-| 2   | Limites de "data retroativa" das transações                                                                | 06, 07              |
-| 3   | Materialização dos meses futuros das despesas fixas — **implementada sob demanda na leitura; confirmar**   | 07                  |
-| 4   | Estratégia frontend↔backend: mesma origem (proxy/rewrites) ou origens distintas                            | 02, 07              |
-| 5   | Biblioteca de log                                                                                          | 03                  |
-| 6   | Hospedagem do backend                                                                                      | 03                  |
-| 7   | Plataforma de CI e meta de cobertura                                                                       | 05                  |
+| 2   | Materialização dos meses futuros das despesas fixas — **implementada sob demanda na leitura; confirmar**   | 07                  |
+| 3   | Estratégia frontend↔backend: mesma origem (proxy/rewrites) ou origens distintas                            | 02, 07              |
+| 4   | Biblioteca de log                                                                                          | 03                  |
+| 5   | Hospedagem do backend                                                                                      | 03                  |
+| 6   | Plataforma de CI e meta de cobertura                                                                       | 05                  |
 
 ## Ambientes (Neon)
 

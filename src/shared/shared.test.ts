@@ -2,7 +2,24 @@ import { describe, expect, it } from "vitest";
 import { dueDateIn, lastDayOf, shiftMonth, todayIn } from "./dates";
 import { formatBrl, formatDateBr, formatDecimalBr, formatMonthLabel, plural } from "./format";
 import { referenceIssues } from "./references";
-import { toMoney } from "./schemas";
+import { maxTransactionDate, toMoney, transactionDateSchema } from "./schemas";
+
+describe("data de lançamento", () => {
+  it("vai até 1 ano depois de hoje (29/02 vira 01/03 no ano seguinte)", () => {
+    expect(maxTransactionDate(new Date("2026-11-23T12:00:00Z"))).toBe("2027-11-23");
+    expect(maxTransactionDate(new Date("2028-02-29T12:00:00Z"))).toBe("2029-03-01");
+  });
+
+  it("aceita de 2000-01-01 até o limite futuro", () => {
+    const limit = maxTransactionDate();
+    expect(transactionDateSchema.safeParse("2000-01-01").success).toBe(true);
+    expect(transactionDateSchema.safeParse(limit).success).toBe(true);
+    expect(transactionDateSchema.safeParse("1999-12-31").success).toBe(false);
+    const after = new Date(`${limit}T00:00:00Z`);
+    after.setUTCDate(after.getUTCDate() + 1);
+    expect(transactionDateSchema.safeParse(after.toISOString().slice(0, 10)).success).toBe(false);
+  });
+});
 
 describe("datas", () => {
   it("hoje no fuso de São Paulo (03:00 UTC ainda é o dia anterior)", () => {

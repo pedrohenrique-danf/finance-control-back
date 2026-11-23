@@ -1,7 +1,7 @@
 import type { Notifier } from "@/modules/notifications";
 import type { RecurrencesService } from "@/modules/recurrences";
-import { ValidationError } from "@/shared/errors";
 import type { FieldIssue } from "@/shared/errors";
+import { ValidationError } from "@/shared/errors";
 import { formatDateBr, formatDecimalBr, formatMonthLabel, plural } from "@/shared/format";
 import type { ReferenceLookups } from "@/shared/references";
 import type { ExchangeRepository } from "./exchange.repository";
