@@ -77,7 +77,10 @@ Regras:
   os usuários `e2e+…`/`it+…@financecontrol.local` do banco de teste (`db:limpar-testes` usa o `.env`; `--simular`
   só conta; em produção exige `--producao`). A exclusão em cascata leva os dados deles; o usuário demo fica.
 - Meta de cobertura: **[PENDENTE DE DEFINIÇÃO]**.
-- CI mínima: `typecheck → lint → test → test:integration → test:e2e`. Plataforma **[PENDENTE DE DEFINIÇÃO]**.
+- CI: GitHub Actions (`.github/workflows/ci.yml`), em todo pull request e push na `main`: `typecheck → lint →
+  test:coverage → db:check → db:migrate → test:integration → test:e2e → build`. O banco é um Postgres 18 em
+  container, descartado ao fim; o `BETTER_AUTH_SECRET` é gerado na execução. A cobertura sai só como relatório
+  (meta mínima a definir depois de ver os números).
 
 ## Exemplos de código
 
