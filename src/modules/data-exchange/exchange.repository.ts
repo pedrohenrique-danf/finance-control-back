@@ -1,6 +1,16 @@
-import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { categories, dataOperations, importErrors, transactions, valueSources } from "@/db/schema";
+import {
+  categories,
+  dataOperations,
+  importErrors,
+  notificationPreferences,
+  notifications,
+  recurrences,
+  transactions,
+  users,
+  valueSources,
+} from "@/db/schema";
 import { lastDayOf, monthRange } from "@/shared/dates";
 import type { DataFormat, DataOperationStatus, DataOperationType } from "@/shared/enums";
 import type { ConfirmImportInput, DataOperationDto } from "./exchange.schemas";
@@ -102,6 +112,60 @@ export function createExchangeRepository(db: Database) {
     },
 
     /** Transações do mês com os nomes de categoria e conta (exportação). */
+    /**
+     * Todos os dados do usuário, para a portabilidade (LGPD, art. 18). Sem `userId` e sem dados de autenticação
+     * (senha, sessões, tokens).
+     */
+    async personalData(userId: string) {
+      const [profile] = await db
+        .select({
+          name: users.name,
+          email: users.email,
+          createdAt: users.createdAt,
+          lastLoginAt: users.lastLoginAt,
+          termsAcceptedAt: users.termsAcceptedAt,
+          termsVersion: users.termsVersion,
+        })
+        .from(users)
+        .where(eq(users.id, userId));
+      const [cats, sources, txs, recs, notifs, prefs, ops] = await Promise.all([
+        db.select().from(categories).where(eq(categories.userId, userId)).orderBy(asc(categories.createdAt)),
+        db.select().from(valueSources).where(eq(valueSources.userId, userId)).orderBy(asc(valueSources.createdAt)),
+        db.select().from(transactions).where(eq(transactions.userId, userId)).orderBy(asc(transactions.date)),
+        db.select().from(recurrences).where(eq(recurrences.userId, userId)).orderBy(asc(recurrences.createdAt)),
+        db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(asc(notifications.createdAt)),
+        db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, userId)),
+        db
+          .select()
+          .from(dataOperations)
+          .where(eq(dataOperations.userId, userId))
+          .orderBy(asc(dataOperations.createdAt)),
+      ]);
+      const errors = ops.length
+        ? await db
+            .select()
+            .from(importErrors)
+            .where(
+              inArray(
+                importErrors.operationId,
+                ops.map((o) => o.id),
+              ),
+            )
+        : [];
+      const withoutUser = <T extends { userId: string }>(rows: T[]) => rows.map(({ userId: _, ...rest }) => rest);
+      return {
+        profile,
+        categories: withoutUser(cats),
+        valueSources: withoutUser(sources),
+        transactions: withoutUser(txs),
+        recurrences: withoutUser(recs),
+        notifications: withoutUser(notifs),
+        notificationPreferences: withoutUser(prefs),
+        dataOperations: withoutUser(ops),
+        importErrors: errors,
+      };
+    },
+
     exportRows(userId: string, month: string) {
       const range = monthRange(month);
       return db

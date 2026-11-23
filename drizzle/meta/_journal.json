@@ -36,6 +36,13 @@
       "when": 1795390855920,
       "tag": "0004_notificacoes_por_acao",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795454255525,
+      "tag": "0005_termos_aceite",
+      "breakpoints": true
     }
   ]
 }

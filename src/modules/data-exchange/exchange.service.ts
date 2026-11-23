@@ -1,5 +1,6 @@
 import type { Notifier } from "@/modules/notifications";
 import type { RecurrencesService } from "@/modules/recurrences";
+import { todayIn } from "@/shared/dates";
 import type { FieldIssue } from "@/shared/errors";
 import { ValidationError } from "@/shared/errors";
 import { formatDateBr, formatDecimalBr, formatMonthLabel, plural } from "@/shared/format";
@@ -97,6 +98,13 @@ export function createExchangeService(deps: {
     },
 
     history: (userId: string) => repository.history(userId),
+
+    /** Arquivo JSON com todos os dados do usuário (Perfil → "Baixar meus dados"). */
+    async exportPersonalData(userId: string, now: Date): Promise<{ fileName: string; content: string }> {
+      const data = await repository.personalData(userId);
+      const fileName = `financecontrol-meus-dados-${todayIn(now)}.json`;
+      return { fileName, content: JSON.stringify({ exportedAt: now.toISOString(), ...data }, null, 2) };
+    },
 
     async exportCsv(userId: string, month: string, now: Date): Promise<{ fileName: string; content: string }> {
       await recurrences.materializeDue(userId, now);

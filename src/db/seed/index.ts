@@ -6,6 +6,7 @@ import { loadConfig } from "@/app/config";
 import { createApp } from "@/app/create-app";
 import { createDb } from "@/db/client";
 import { categories, recurrences, transactions, users, valueSources } from "@/db/schema";
+import { TERMS_VERSION } from "@/modules/auth";
 import { monthOf, todayIn } from "@/shared/dates";
 import { buildDemoData, CATEGORY_NAMES, DEMO_ACCOUNTS } from "./demo-data";
 
@@ -23,7 +24,7 @@ const app = createApp({ ...config, logLevel: "warn" }, { db });
 try {
   let [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, DEMO_USER.email));
   if (!user) {
-    const result = await app.services.auth.api.signUpEmail({ body: DEMO_USER });
+    const result = await app.services.auth.api.signUpEmail({ body: { ...DEMO_USER, termsVersion: TERMS_VERSION } });
     user = { id: result.user.id };
     console.info(`Seed: usuário ${DEMO_USER.email} criado.`);
   }

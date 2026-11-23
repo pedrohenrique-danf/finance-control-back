@@ -62,6 +62,23 @@ export function createDataExchangeRoutes(deps: {
     },
     {
       method: "GET",
+      path: "/api/v1/exports/me",
+      access: "private",
+      handler: async (_req, ctx) => {
+        const user = requireUser(ctx);
+        const { fileName, content } = await deps.exchange.exportPersonalData(user.id, ctx.now);
+        ctx.logger.info("personal_data_exported", { requestId: ctx.requestId });
+        return new Response(content, {
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Content-Disposition": `attachment; filename="${fileName}"`,
+            "Cache-Control": "no-store",
+          },
+        });
+      },
+    },
+    {
+      method: "GET",
       path: "/api/v1/exports/transactions",
       access: "private",
       handler: async (req, ctx) => {
