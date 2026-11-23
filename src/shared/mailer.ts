@@ -41,13 +41,18 @@ export function createSmtpMailer(config: MailConfig): Mailer {
 }
 
 /**
- * Desenvolvimento e testes sem SMTP: o e-mail não sai, vai para o log com os links em destaque.
- * Nunca usado em produção (a configuração exige SMTP lá).
+ * Sem SMTP o e-mail não sai.
+ * - Dev/test (`exposeLinks`): vai para o log com os links em destaque, para testar a recuperação de senha.
+ * - Produção: só um aviso, sem destinatário nem link (um link de redefinição no log daria acesso à conta).
  */
-export function createLogMailer(logger: Logger): Mailer {
+export function createLogMailer(logger: Logger, { exposeLinks }: { exposeLinks: boolean }): Mailer {
   return {
     async send({ to, subject, text }) {
-      logger.info("email_not_sent_dev", { to, subject, links: text.match(/https?:\/\/\S+/g) ?? [] });
+      if (exposeLinks) {
+        logger.info("email_not_sent_dev", { to, subject, links: text.match(/https?:\/\/\S+/g) ?? [] });
+      } else {
+        logger.warn("email_not_sent_no_smtp", { subject });
+      }
     },
   };
 }

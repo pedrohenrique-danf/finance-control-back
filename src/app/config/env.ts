@@ -37,13 +37,6 @@ const envSchema = z
         message: "Informe SMTP_HOST, SMTP_USER, SMTP_PASS e MAIL_FROM juntos.",
       });
     }
-    if (env.NODE_ENV === "production" && !env.SMTP_HOST) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["SMTP_HOST"],
-        message: "SMTP é obrigatório em produção (e-mail de recuperação de senha).",
-      });
-    }
     if (env.NODE_ENV === "production" && env.CORS_ORIGINS.trim() === "") {
       ctx.addIssue({ code: "custom", path: ["CORS_ORIGINS"], message: "CORS_ORIGINS é obrigatório em produção." });
     }

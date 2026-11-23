@@ -30,8 +30,14 @@ export function createApp(config: AppConfig, overrides: AppOverrides = {}) {
   const logger = overrides.logger ?? createConsoleLogger(config.logLevel);
   const ownedDb = overrides.db ? null : createDb(config.databaseUrl);
   const db = overrides.db ?? (ownedDb as NonNullable<typeof ownedDb>).db;
-  // Sem SMTP (só dev/test; produção exige), os e-mails vão para o log.
-  const mailer = overrides.mailer ?? (config.mail ? createSmtpMailer(config.mail) : createLogMailer(logger));
+  // Sem SMTP os e-mails não saem: em dev/test o link vai para o log; em produção, só um aviso.
+  const production = config.env === "production";
+  if (!overrides.mailer && !config.mail && production) {
+    logger.warn("smtp_not_configured", { impact: "recuperação de senha não envia e-mail até configurar SMTP_*" });
+  }
+  const mailer =
+    overrides.mailer ??
+    (config.mail ? createSmtpMailer(config.mail) : createLogMailer(logger, { exposeLinks: !production }));
 
   // Módulos de domínio: dependem uns dos outros só por interfaces (docs/04).
   const notifications = createNotificationsModule({ db, logger });

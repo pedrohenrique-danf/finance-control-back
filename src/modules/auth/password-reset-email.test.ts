@@ -24,14 +24,23 @@ describe("passwordResetEmail", () => {
 });
 
 describe("createLogMailer", () => {
-  it("não envia: registra destinatário, assunto e links no log", async () => {
+  it("dev/test: não envia e registra destinatário, assunto e links no log", async () => {
     const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     const mail = passwordResetEmail({ to: "ana@x.com", name: "Ana", url, expiresInMinutes: 60 });
-    await createLogMailer(logger).send(mail);
+    await createLogMailer(logger, { exposeLinks: true }).send(mail);
     expect(logger.info).toHaveBeenCalledWith("email_not_sent_dev", {
       to: "ana@x.com",
       subject: mail.subject,
       links: [url],
     });
+  });
+
+  it("produção: só avisa, sem destinatário nem link no log", async () => {
+    const logger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const mail = passwordResetEmail({ to: "ana@x.com", name: "Ana", url, expiresInMinutes: 60 });
+    await createLogMailer(logger, { exposeLinks: false }).send(mail);
+    expect(logger.warn).toHaveBeenCalledWith("email_not_sent_no_smtp", { subject: mail.subject });
+    expect(logger.info).not.toHaveBeenCalled();
+    expect(JSON.stringify(logger.warn.mock.calls)).not.toMatch(/ana@x\.com|reset-password/);
   });
 });
