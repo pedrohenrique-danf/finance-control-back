@@ -74,8 +74,7 @@ Os schemas Zod do backend são a referência do contrato. O frontend mantém esp
   uma versão antiga ainda não está implementado.
 - **Excluir conta:** `deleteUser` do Better Auth (`POST /api/auth/delete-user`). Conta com senha: a senha é obrigatória
   (hook `requirePasswordToDeleteAccount`, 400 `PASSWORD_REQUIRED`), para uma sessão roubada não bastar. Conta só do
-  Google: sessão
-  criada há menos de 1 dia (Google). Todas as tabelas do usuário têm `ON DELETE CASCADE`.
+  Google: basta a sessão criada há menos de 1 dia. Todas as tabelas do usuário têm `ON DELETE CASCADE`.
 - **Portabilidade:** `GET /api/v1/exports/me` devolve um JSON com perfil, categorias, contas, transações, despesas
   fixas, notificações, preferências e histórico de importação/exportação, sem `userId` nem dados de autenticação.
 
