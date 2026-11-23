@@ -1,7 +1,8 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/main.ts"],
+  // migrate: aplica as migrações antes do servidor (script start).
+  entry: { main: "src/main.ts", migrate: "src/db/migrate.ts" },
   format: ["esm"],
   target: "node22",
   platform: "node",
