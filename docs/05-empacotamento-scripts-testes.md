@@ -73,6 +73,9 @@ Regras:
   por causa da latência do banco remoto. Travas em `tests/integration/support.ts`: exige `NODE_ENV=test`, não lê
   o `.env` e recusa rodar se o `.env.test` apontar para o mesmo banco do `.env`. Migrações no banco de teste:
   `pnpm db:migrate:test`. Para o E2E do frontend, suba o backend com `pnpm dev:test`.
+- Limpeza: a integração apaga os usuários que cria; o E2E do frontend não. `pnpm db:limpar-testes:test` apaga
+  os usuários `e2e+…`/`it+…@financecontrol.local` do banco de teste (`db:limpar-testes` usa o `.env`; `--simular`
+  só conta; em produção exige `--producao`). A exclusão em cascata leva os dados deles; o usuário demo fica.
 - Meta de cobertura: **[PENDENTE DE DEFINIÇÃO]**.
 - CI mínima: `typecheck → lint → test → test:integration → test:e2e`. Plataforma **[PENDENTE DE DEFINIÇÃO]**.
 
