@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 import { inArray } from "drizzle-orm";
 import { loadConfig } from "@/app/config";
 import { type App, createApp } from "@/app/create-app";
@@ -6,16 +8,41 @@ import { createDb } from "@/db/client";
 import { users } from "@/db/schema";
 import type { MailMessage } from "@/shared/mailer";
 
-// Integração: banco REAL (branch Neon de homologação do .env), nunca produção (docs/05).
+// Integração: banco REAL e exclusivo de testes (branch Neon `teste`, via .env.test). Nunca o .env de
+// desenvolvimento nem produção (docs/05). Na CI não há arquivo: as variáveis vêm do ambiente.
 try {
-  process.loadEnvFile(".env");
+  process.loadEnvFile(".env.test");
 } catch {
-  // sem .env: usa as variáveis do ambiente (CI)
+  if (!process.env.CI) {
+    throw new Error("Crie o .env.test a partir do .env.test.example (banco da branch Neon `teste`).");
+  }
+}
+
+/** Host do banco (sem usuário/senha), para comparar connection strings. */
+function dbHost(url: string | undefined): string | undefined {
+  try {
+    return url ? new URL(url).hostname.replace("-pooler", "") : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Trava contra colar a connection string errada: o banco de teste não pode ser o do .env de desenvolvimento. */
+function assertTestDatabase(databaseUrl: string, env: string) {
+  if (env !== "test") {
+    throw new Error(`Testes de integração exigem NODE_ENV=test (recebido: ${env}).`);
+  }
+  if (!existsSync(".env")) return;
+  const dev = parseEnv(readFileSync(".env", "utf8"));
+  const devHosts = [dbHost(dev.DATABASE_URL), dbHost(dev.DATABASE_URL_DIRECT)];
+  if (devHosts.includes(dbHost(databaseUrl))) {
+    throw new Error("O .env.test aponta para o mesmo banco do .env. Use a connection string da branch `teste`.");
+  }
 }
 
 export function setupIntegration() {
   const config = loadConfig();
-  if (config.env === "production") throw new Error("Testes de integração bloqueados em produção.");
+  assertTestDatabase(config.databaseUrl, config.env);
   const { db, close } = createDb(config.databaseUrl);
   // E-mails ficam numa caixa de saída em memória (nada é enviado de verdade).
   const outbox: MailMessage[] = [];

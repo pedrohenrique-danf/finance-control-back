@@ -57,7 +57,7 @@ Não adicione pacote fora desta tabela sem autorização.
 | Nível | O que testa | Ferramenta | Banco |
 |---|---|---|---|
 | Unitário | serviços (regras), funções puras (datas, dinheiro), config, schemas Zod, pilha HTTP via `createHonoServer(app).request()` | Vitest | nenhum (repositório em memória) |
-| Integração | repositórios + constraints do PostgreSQL (FK, unique, `ON DELETE SET NULL`, check) | Vitest | **real**, dedicado a testes **[PENDENTE DE DEFINIÇÃO]** (ex.: branch Neon de teste; nunca `production`) |
+| Integração | repositórios + constraints do PostgreSQL (FK, unique, `ON DELETE SET NULL`, check) | Vitest | **real**, dedicado a testes: branch Neon `teste` (`.env.test`); nunca `production` nem `desenvolvimento` |
 | Fluxo (API) | cadastro → login → CRUD completo, 400/401/404 | Playwright (`request`) | real, de teste |
 
 Regras:
@@ -69,8 +69,10 @@ Regras:
 - **Como está hoje:** regras puras e de serviço em `src/**/*.test.ts` (`pnpm test`, sem banco, inclusive o teste que
   garante 401 em toda rota privada); o fluxo completo da API em `tests/integration/` (`pnpm test:integration`):
   cadastro real pelo Better Auth, chamadas HTTP com o cookie de sessão e limpeza em cascata dos usuários criados.
-  Enquanto o item 2 do README não for decidido, roda na branch Neon `homologacao` do `.env` (bloqueado se
-  `NODE_ENV=production`), com timeout de 60 s por teste por causa da latência do banco remoto.
+  Roda na branch Neon `teste` do `.env.test` (modelo em `.env.test.example`), com timeout de 60 s por teste
+  por causa da latência do banco remoto. Travas em `tests/integration/support.ts`: exige `NODE_ENV=test`, não lê
+  o `.env` e recusa rodar se o `.env.test` apontar para o mesmo banco do `.env`. Migrações no banco de teste:
+  `pnpm db:migrate:test`. Para o E2E do frontend, suba o backend com `pnpm dev:test`.
 - Meta de cobertura: **[PENDENTE DE DEFINIÇÃO]**.
 - CI mínima: `typecheck → lint → test → test:integration → test:e2e`. Plataforma **[PENDENTE DE DEFINIÇÃO]**.
 

@@ -8,7 +8,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   use: { baseURL },
   webServer: {
-    command: "pnpm dev",
+    command: "pnpm dev:test", // banco de teste (.env.test), nunca o de desenvolvimento
     url: `${baseURL}/api/v1/health`,
     reuseExistingServer: !process.env.CI,
   },
