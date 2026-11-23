@@ -5,9 +5,10 @@ import type { TransactionNature, TransactionStatus, TransactionType } from "@/sh
  * - csv: planilha no formato do próprio app (o mesmo da exportação);
  * - csv_banco: CSV exportado por um banco (colunas reconhecidas por nome, ver parsers/bank-csv.ts);
  * - ofx: arquivo OFX/QFX, padrão aceito pela maioria dos bancos;
- * - nubank_fatura / nubank_extrato: PDFs do Nubank.
+ * - nubank_fatura / nubank_extrato: PDFs do Nubank;
+ * - picpay_extrato: PDF do extrato de conta do PicPay.
  */
-export const importSources = ["csv", "csv_banco", "ofx", "nubank_fatura", "nubank_extrato"] as const;
+export const importSources = ["csv", "csv_banco", "ofx", "nubank_fatura", "nubank_extrato", "picpay_extrato"] as const;
 export type ImportSource = (typeof importSources)[number];
 
 /** Tipo de documento: extrato de conta ou fatura de cartão (define a conta sugerida na revisão). */

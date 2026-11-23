@@ -2,6 +2,7 @@ import { MIN_DATE, maxTransactionDate } from "@/shared/schemas";
 import type { ImportRow, ImportRowError, StatementKind } from "../import.types";
 import { MAX_ROWS, splitCsvLine } from "./csv";
 import { institutionFromText } from "./institutions";
+import { INTERNAL_TRANSFER_NOTE, isInternalTransfer } from "./internal-transfers";
 import { fold, parseFlexibleAmount, parseFlexibleDate } from "./pt-br";
 
 // CSV exportado por bancos e carteiras digitais. Não há um padrão: cada banco usa seu separador, sua
@@ -16,6 +17,8 @@ import { fold, parseFlexibleAmount, parseFlexibleDate } from "./pt-br";
 //   Nubank cartão:  date,title,amount                             2026-10-05,Padaria,12.90   (positivo = compra)
 //   Inter:          Extrato Conta Corrente / Conta ;... / Data Lançamento;Histórico;Descrição;Valor;Saldo
 //   Débito/crédito: Data;Histórico;Débito;Crédito;Saldo
+//   PicPay:         data,hora,tipo,"origem / destino",valor,"forma de pagamento"   ("−R$ 21,57")
+// Uma coluna "tipo" que não diz a direção (ex.: "Pix enviado") entra no início da descrição.
 
 type Field = "date" | "description" | "detail" | "amount" | "debit" | "credit" | "direction" | "category";
 
@@ -54,9 +57,14 @@ const SYNONYMS: Readonly<Record<Field, readonly string[]>> = {
     "detalhes",
     "memo",
     "transaction type",
+    "origem destino",
+    "origem",
+    "destino",
+    "favorecido",
+    "contraparte",
   ],
   // Segunda coluna de texto (o Inter separa "Histórico" de "Descrição").
-  detail: ["descricao", "detalhes", "complemento", "favorecido", "nome"],
+  detail: ["descricao", "detalhes", "complemento", "favorecido", "nome", "origem destino", "contraparte"],
   amount: [
     "valor",
     "amount",
@@ -149,6 +157,7 @@ function detectKind(layout: Layout, preamble: string, fileName: string): Stateme
   if (names.join(",") === "date,title,amount") return "cartao";
   const text = fold(`${fileName} ${preamble}`);
   if (/\b(FATURA|CARTAO DE CREDITO|CREDIT CARD)\b/.test(text)) return "cartao";
+  if (detectInstitution(layout, "", "") === "PicPay") return "conta";
   if (/\b(EXTRATO|CONTA CORRENTE|CONTA DIGITAL|CONTA PAGAMENTO|SALDO)\b/.test(text)) return "conta";
   return null;
 }
@@ -157,6 +166,7 @@ function detectInstitution(layout: Layout, preamble: string, fileName: string): 
   const names = layout.header.map(normalizeHeader).join(",");
   if (names === "date,title,amount" || names === "data,valor,identificador,descricao") return "Nubank";
   if (names.startsWith("release date,transaction type")) return "Mercado Pago";
+  if (names === "data,hora,tipo,origem destino,valor,forma de pagamento") return "PicPay";
   return institutionFromText(`${preamble}\n${fileName.replace(/\.[a-z]+$/i, "")}`);
 }
 
@@ -209,8 +219,11 @@ export function parseBankCsv(text: string, fileName = ""): BankCsvResult | null 
       const position = columns[field];
       return position === undefined ? "" : (cells[position] ?? "").trim();
     };
-    const main = get("description");
-    const detail = get("detail");
+    const directionText = get("direction");
+    // Coluna de tipo descritiva ("Pix enviado", "Pagamento realizado"): vira o começo da descrição.
+    const label = directionText && !directionOf(directionText) && !get("detail") ? directionText : "";
+    const main = label || get("description");
+    const detail = label ? get("description") : get("detail");
     const description = (detail && fold(detail) !== fold(main) ? (main ? `${main} — ${detail}` : detail) : main)
       .replace(/\s+/g, " ")
       .slice(0, 160);
@@ -256,6 +269,7 @@ export function parseBankCsv(text: string, fileName = ""): BankCsvResult | null 
 
     const folded = fold(description);
     const isCardPayment = kind === "cartao" && type === "receita" && CARD_PAYMENT.test(folded);
+    const internal = !isCardPayment && isInternalTransfer(description);
     const installment = kind === "cartao" ? INSTALLMENT.exec(folded) : null;
     rows.push({
       line: lineNumber,
@@ -269,8 +283,12 @@ export function parseBankCsv(text: string, fileName = ""): BankCsvResult | null 
       accountName: null,
       installment:
         installment && Number(installment[1]) <= Number(installment[2]) ? `${installment[1]}/${installment[2]}` : null,
-      suggestedSkip: isCardPayment,
-      note: isCardPayment ? "Pagamento da fatura: já aparece como saída no extrato da conta." : null,
+      suggestedSkip: isCardPayment || internal,
+      note: isCardPayment
+        ? "Pagamento da fatura: já aparece como saída no extrato da conta."
+        : internal
+          ? INTERNAL_TRANSFER_NOTE
+          : null,
     });
   }
   return { institution, kind, rows, errors };

@@ -4,6 +4,8 @@ import { parseBankCsv } from "./parsers/bank-csv";
 import { institutionFromCode, institutionFromText } from "./parsers/institutions";
 import { isOfx, parseOfx } from "./parsers/ofx";
 import { decodeText, parseFlexibleAmount, parseFlexibleDate } from "./parsers/pt-br";
+import { extractPdfLines } from "./pdf/extract-lines";
+import { makePdf, type PdfText } from "./test-support/make-pdf";
 
 // Arquivos montados a partir dos formatos públicos de exportação (sem dados reais de clientes).
 
@@ -12,6 +14,7 @@ const service = createImportPreviewService({
     throw new Error("não deveria ler PDF");
   },
 });
+const row = (x: number, top: number, text: string): PdfText => ({ x, top, text });
 const utf8 = (text: string) => new TextEncoder().encode(text);
 const file = (name: string, bytes: Uint8Array, type = "") => ({ name, type, bytes });
 const summary = (rows: Array<{ date: string; description: string; amount: string; type: string }>) =>
@@ -28,6 +31,8 @@ describe("valores, datas e codificação de arquivos de banco", () => {
     ["(50,00)", "50.00", true],
     ["R$ -1.234,56", "1234.56", true],
     ["-R$ 12,90", "12.90", true],
+    ["−R$ 21,57", "21.57", true],
+    ["+R$ 2.005,90", "2005.90", false],
     ["+ 3.687,11", "3687.11", false],
     ["1234", "1234.00", false],
     ["12,5", "12.50", false],
@@ -288,5 +293,97 @@ describe("pré-visualização por tipo de arquivo", () => {
       status: 400,
       details: [{ path: "file", message: expect.stringMatching(/data, descrição e valor/) }],
     });
+  });
+});
+
+describe("PicPay", () => {
+  it("CSV: tipo + origem/destino na descrição, valor com sinal e R$, cofrinho sugerido para não importar", () => {
+    const csv = [
+      'data,hora,tipo,"origem / destino",valor,"forma de pagamento"',
+      '2026-11-19,18:16,"Pix enviado","MERCADO EXEMPLO","−R$ 21,57","Com saldo"',
+      '2026-11-14,23:20,"Pix recebido","FULANO DE TAL","+R$ 3,00",',
+      '2026-11-12,23:04,"Dinheiro resgatado","Do cofrinho Reserva","+R$ 581,54",',
+      '2026-11-07,15:45,"Dinheiro guardado","No cofrinho Reserva","−R$ 1.065,51","Com saldo"',
+      '2026-11-06,10:47,"Pagamento realizado","OPERADORA TELEFONE","−R$ 54,00","Com saldo"',
+      "",
+    ].join("\n");
+    const result = parseBankCsv(csv, "extrato-2026-10-24-2026-11-22.csv");
+    expect(result).toMatchObject({ institution: "PicPay", kind: "conta", errors: [] });
+    expect(summary(result?.rows ?? [])).toEqual([
+      ["2026-11-19", "Pix enviado — MERCADO EXEMPLO", "21.57", "despesa"],
+      ["2026-11-14", "Pix recebido — FULANO DE TAL", "3.00", "receita"],
+      ["2026-11-12", "Dinheiro resgatado — Do cofrinho Reserva", "581.54", "receita"],
+      ["2026-11-07", "Dinheiro guardado — No cofrinho Reserva", "1065.51", "despesa"],
+      ["2026-11-06", "Pagamento realizado — OPERADORA TELEFONE", "54.00", "despesa"],
+    ]);
+    expect(result?.rows.map((r) => r.suggestedSkip)).toEqual([false, false, true, true, false]);
+    expect(result?.rows[2]?.note).toMatch(/reserva do banco/);
+  });
+
+  const header = (top: number): PdfText[] => [
+    row(44, top, "Hora"),
+    row(121, top, "Tipo"),
+    row(243, top, "Origem / Destino"),
+    row(351, top, "Forma de pagamento"),
+    row(530, top, "Valor"),
+  ];
+  const footer = (page: number): PdfText[] => [row(136, 784, "PicPay Serviços S/A"), row(539, 800, `${page} de 2`)];
+  const extrato: PdfText[][] = [
+    [
+      row(31, 115, "Extrato de conta"),
+      row(31, 145, "Período"),
+      row(225, 145, "Saldo final do período"),
+      row(32, 167, "24 de outubro de 2026 a"),
+      row(225, 167, "R$ 285,60"),
+      row(32, 181, "22 de novembro de 2026"),
+      row(44, 227, "19 de novembro 2026"),
+      row(434, 227, "Saldo ao final do dia:"),
+      row(511, 227, "R$ 285,60"),
+      ...header(260),
+      row(44, 295, "18:16"),
+      row(121, 295, "Pix enviado"),
+      row(243, 295, "MERCADO EXEMPLO"),
+      row(351, 295, "Com saldo"),
+      row(514, 295, "-R$ 21,57"),
+      // origem/destino quebrado acima e abaixo da linha da hora
+      row(243, 441, "FULANA DE TAL"),
+      row(44, 446, "23:19"),
+      row(121, 446, "Pix recebido"),
+      row(517, 446, "+R$ 9,43"),
+      row(243, 450, "DA SILVA"),
+      ...footer(1),
+    ],
+    [
+      row(44, 116, "07 de novembro 2026"),
+      row(435, 116, "Saldo ao final do dia:"),
+      row(512, 116, "R$ 123,43"),
+      ...header(149),
+      row(243, 323, "No cofrinho Reserva de"),
+      row(44, 328, "15:45"),
+      row(121, 328, "Dinheiro guardado"),
+      row(351, 328, "Com saldo"),
+      row(502, 328, "-R$ 1.065,51"),
+      row(243, 332, "emergência"),
+      ...footer(2),
+    ],
+  ];
+
+  it("PDF: período, dia de cada bloco, origem/destino em várias linhas e cofrinho", async () => {
+    const pdfService = createImportPreviewService({ extractPdfLines });
+    const preview = await pdfService.preview(file("extrato.pdf", makePdf(extrato), "application/pdf"));
+    expect(preview).toMatchObject({
+      source: "picpay_extrato",
+      format: "pdf",
+      institution: "PicPay",
+      kind: "conta",
+      period: { start: "2026-10-24", end: "2026-11-22" },
+      errors: [],
+    });
+    expect(summary(preview.rows)).toEqual([
+      ["2026-11-19", "Pix enviado — MERCADO EXEMPLO", "21.57", "despesa"],
+      ["2026-11-19", "Pix recebido — FULANA DE TAL DA SILVA", "9.43", "receita"],
+      ["2026-11-07", "Dinheiro guardado — No cofrinho Reserva de emergência", "1065.51", "despesa"],
+    ]);
+    expect(preview.rows.map((r) => r.suggestedSkip)).toEqual([false, false, true]);
   });
 });
