@@ -79,12 +79,17 @@ describe("termos e dados pessoais (LGPD)", () => {
 
   it("excluir a conta com a senha apaga o usuário e os dados em cascata", async () => {
     const { id, cookie } = await it_.signUp();
-    const wrong = await it_.server.request("/api/auth/delete-user", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Origin: it_.config.betterAuthUrl, cookie },
-      body: JSON.stringify({ password: "senha-errada" }),
-    });
-    expect(wrong.status).toBe(400);
+    const deleteWith = (body: object) =>
+      it_.server.request("/api/auth/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: it_.config.betterAuthUrl, cookie },
+        body: JSON.stringify(body),
+      });
+    // Conta com senha: a sessão recente não basta (proteção contra sessão roubada).
+    const withoutPassword = await deleteWith({});
+    expect(withoutPassword.status).toBe(400);
+    expect(((await withoutPassword.json()) as { code: string }).code).toBe("PASSWORD_REQUIRED");
+    expect((await deleteWith({ password: "senha-errada" })).status).toBe(400);
     const ok = await it_.server.request("/api/auth/delete-user", {
       method: "POST",
       headers: { "Content-Type": "application/json", Origin: it_.config.betterAuthUrl, cookie },

@@ -6,6 +6,7 @@ import type { Database } from "@/db/client";
 import { accounts, sessions, users, verifications } from "@/db/schema";
 import type { Logger } from "@/shared/logger";
 import type { Mailer } from "@/shared/mailer";
+import { requirePasswordToDeleteAccount } from "./delete-account";
 import { passwordResetEmail } from "./password-reset-email";
 import { termsAcceptance } from "./terms";
 
@@ -84,6 +85,7 @@ export function createAuth(deps: AuthDeps) {
         },
       },
     },
+    hooks: { before: requirePasswordToDeleteAccount },
     databaseHooks: {
       user: {
         create: {
