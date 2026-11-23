@@ -113,6 +113,7 @@ pnpm dev                  # http://localhost:3001/api/v1/health
 pnpm verify               # typecheck + lint + testes unitários
 pnpm test:integration     # fluxo completo da API contra o banco de teste do .env.test (ver 05)
 pnpm dev:test             # backend no banco de teste, para o E2E do frontend
+pnpm db:limpar-testes:test  # apaga os usuários e2e+/it+ do banco de teste (--simular só conta)
 ```
 
 ## Convenções compartilhadas com o frontend

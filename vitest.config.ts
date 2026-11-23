@@ -11,7 +11,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
-      exclude: ["src/**/*.test.ts", "src/main.ts", "src/db/seed/**"],
+      exclude: ["src/**/*.test.ts", "src/main.ts", "src/db/seed/**", "src/db/limpar-usuarios-teste.ts"],
     },
   },
 });
