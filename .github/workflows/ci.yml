@@ -1,0 +1,85 @@
+# CI do backend: roda em todo pull request e em push na main.
+# Banco: Postgres em container, criado e descartado a cada execução. Nenhum segredo de produção entra aqui.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: financecontrol_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      PORT: "3001"
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/financecontrol_ci
+      DATABASE_URL_DIRECT: postgresql://postgres:postgres@localhost:5432/financecontrol_ci
+      BETTER_AUTH_URL: http://localhost:3001
+      CORS_ORIGINS: http://localhost:3000
+      LOG_LEVEL: warn
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4 # versão do pnpm vem do "packageManager" do package.json
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Segredo descartável do Better Auth
+        run: echo "BETTER_AUTH_SECRET=$(openssl rand -base64 48)" >> "$GITHUB_ENV"
+
+      - name: Tipagem
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Testes unitários (com relatório de cobertura, sem meta mínima)
+        run: pnpm test:coverage
+
+      - name: Schema e migrações sincronizados
+        run: pnpm db:check
+
+      - name: Aplicar migrações no Postgres da CI
+        run: pnpm db:migrate
+
+      # Os scripts de teste carregam o .env.test; na CI as variáveis já vêm do ambiente (o arquivo fica vazio).
+      - name: Preparar .env.test vazio
+        run: touch .env.test
+
+      - name: Testes de integração
+        run: pnpm test:integration
+
+      - name: Testes de fluxo da API (Playwright)
+        run: pnpm test:e2e
+
+      - name: Build
+        run: pnpm build

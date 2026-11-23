@@ -84,7 +84,7 @@ Pergunte ao responsável antes de assumir qualquer item abaixo.
 | 3   | Estratégia frontend↔backend: mesma origem (proxy/rewrites) ou origens distintas                            | 02, 07              |
 | 4   | Biblioteca de log                                                                                          | 03                  |
 | 5   | Hospedagem do backend                                                                                      | 03                  |
-| 6   | Plataforma de CI e meta de cobertura                                                                       | 05                  |
+| 6   | Meta mínima de cobertura (a CI no GitHub Actions já gera o relatório)                                      | 05                  |
 
 ## Ambientes (Neon)
 
