@@ -273,7 +273,7 @@ Regras (serviço):
   (`materialize`, doc 06): transações `pendente`, `origem = "recorrencia"`, natureza `fixa` (despesa) ou `null`
   (receita). O índice único (`recorrencia_id`, `data`) torna tudo idempotente.
 - **Meses seguintes: materialização sob demanda** (adotada na implementação; **aguarda confirmação** do responsável,
-  item 4 do README). Antes das leituras que mostram transações (`GET /transactions`, `/dashboard/summary`,
+  item 3 do README). Antes das leituras que mostram transações (`GET /transactions`, `/dashboard/summary`,
   `/recurrences/:id` e a exportação), `materializeDue` lança os meses que faltam até o mês corrente. A coluna
   `recorrencias.ultimo_mes_materializado` (migração `0003`) guarda até onde já foi lançado; a próxima rodada continua
   do mês seguinte, então **uma ocorrência excluída pelo usuário não volta**. Sem job agendado nem infraestrutura extra.

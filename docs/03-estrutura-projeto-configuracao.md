@@ -112,10 +112,13 @@ Regras:
 
 | Ambiente | Branch Neon | Arquivo local |
 |---|---|---|
-| `development` (local) | `homologacao` | `.env` |
-| homologação | `homologacao` | variáveis do provedor de hospedagem |
-| `production` | `production` (branch padrão) | `.env.production` local; em produção, variáveis do provedor |
-| `test` (automatizado) | dedicada **[PENDENTE DE DEFINIÇÃO]** | — |
+| `development` (local) | `desenvolvimento` | `.env` |
+| `test` (automatizado) | `teste` | `.env.test` (modelo: `.env.test.example`); na CI, Postgres próprio via variáveis |
+| `production` | `production` (branch padrão) | variáveis do provedor de hospedagem (Render) |
+
+As branches `desenvolvimento` e `teste` são cópias da `production` (Neon → **Reset from parent** recopia os
+dados). Os scripts `dev:test` e `db:migrate:test` carregam o `.env.test`; o `drizzle.config.ts` não lê o `.env`
+quando `NODE_ENV=test`.
 
 ### Modo debug × produção
 

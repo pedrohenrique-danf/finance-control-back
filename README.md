@@ -68,7 +68,7 @@ Versões fixadas no `package.json` (sem `^`/`latest`) e no `pnpm-lock.yaml`.
 | Driver do Neon                            | `pg` (node-postgres): servidor Node de longa duração, com transações    | 06      |
 | Carregamento do `.env`                    | `--env-file-if-exists` do Node                                          | 03      |
 | Porta local                               | `PORT` (padrão `3001`)                                                  | 02, 03  |
-| Branches do Neon                          | `production` (padrão) e `homologacao` — ver "Ambientes"                 | 03      |
+| Branches do Neon                          | `production` (padrão), `desenvolvimento` e `teste` — ver "Ambientes"     | 03      |
 | CSV do RF07                               | Leitor próprio (sem biblioteca): padrão Excel pt-BR, `;`, dd/mm/aaaa      | 07      |
 | PDF do RF07                               | `pdfjs-dist`: fatura e extrato do Nubank, pré-visualização sem gravar     | 07      |
 | `status` da transação                     | `pendente` / `efetivada` (padrão), aceito no POST/PUT                     | 07      |
@@ -80,24 +80,25 @@ Pergunte ao responsável antes de assumir qualquer item abaixo.
 | #   | Decisão                                                                                                    | Arquivo relacionado |
 | --- | ---------------------------------------------------------------------------------------------------------- | ------------------- |
 | 1   | Reconciliar o ER com as tabelas do Better Auth (`usuarios`, `identidades_oauth`, `tokens_usuario`, sessão) | 06, 07              |
-| 2   | Banco/branch Neon dedicado para testes automatizados (hoje: `homologacao`, usuários únicos e limpeza)       | 05                  |
-| 3   | Limites de "data retroativa" das transações                                                                | 06, 07              |
-| 4   | Materialização dos meses futuros das despesas fixas — **implementada sob demanda na leitura; confirmar**   | 07                  |
-| 5   | Estratégia frontend↔backend: mesma origem (proxy/rewrites) ou origens distintas                            | 02, 07              |
-| 6   | Biblioteca de log                                                                                          | 03                  |
-| 7   | Hospedagem do backend                                                                                      | 03                  |
-| 8   | Plataforma de CI e meta de cobertura                                                                       | 05                  |
+| 2   | Limites de "data retroativa" das transações                                                                | 06, 07              |
+| 3   | Materialização dos meses futuros das despesas fixas — **implementada sob demanda na leitura; confirmar**   | 07                  |
+| 4   | Estratégia frontend↔backend: mesma origem (proxy/rewrites) ou origens distintas                            | 02, 07              |
+| 5   | Biblioteca de log                                                                                          | 03                  |
+| 6   | Hospedagem do backend                                                                                      | 03                  |
+| 7   | Plataforma de CI e meta de cobertura                                                                       | 05                  |
 
 ## Ambientes (Neon)
 
-Projeto Neon `finance-control` (região `aws-sa-east-1`).
+Projeto Neon `FinanceControl` (região `aws-us-east-1`, N. Virginia).
 
-| Branch Neon   | Uso                                              | Arquivo de ambiente local          |
-| ------------- | ------------------------------------------------ | ---------------------------------- |
-| `production`  | produção (branch padrão)                         | `.env.production` (não versionado) |
-| `homologacao` | homologação e desenvolvimento local              | `.env` (não versionado)            |
+| Branch Neon       | Uso                                                  | Arquivo de ambiente local                   |
+| ----------------- | ---------------------------------------------------- | ------------------------------------------- |
+| `production`      | produção (branch padrão), usada pelo Render          | — (variáveis no painel do Render)           |
+| `desenvolvimento` | desenvolvimento local (`pnpm dev`, `db:seed`)        | `.env` (não versionado)                     |
+| `teste`           | testes automatizados (integração e E2E)              | `.env.test` (não versionado; modelo `.env.test.example`) |
 
-- O `.env` local aponta para `homologacao`: o desenvolvimento nunca toca em `production`.
+- O `.env` local aponta para `desenvolvimento` e o `.env.test` para `teste`: nada local toca em `production`.
+- `desenvolvimento` e `teste` são cópias da `production`; no Neon, **Reset from parent** recopia os dados.
 - Use a connection string **com pooler** em `DATABASE_URL` e a **direta** em `DATABASE_URL_DIRECT` (migrações).
 - Use `sslmode=verify-full` nas connection strings.
 
@@ -105,12 +106,14 @@ Projeto Neon `finance-control` (região `aws-sa-east-1`).
 
 ```bash
 pnpm install              # instala dependências (lockfile congelado em CI: --frozen-lockfile)
-cp .env.example .env      # preencha com a connection string da branch homologacao
+cp .env.example .env      # preencha com a connection string da branch desenvolvimento
+cp .env.test.example .env.test  # connection string da branch teste (testes automatizados)
 pnpm db:migrate           # aplica as migrações de drizzle/
 pnpm db:seed              # usuário de demonstração com dados (ver 06)
 pnpm dev                  # http://localhost:3001/api/v1/health
 pnpm verify               # typecheck + lint + testes unitários
-pnpm test:integration     # fluxo completo da API contra o banco do .env (ver 05)
+pnpm test:integration     # fluxo completo da API contra o banco de teste do .env.test (ver 05)
+pnpm dev:test             # backend no banco de teste, para o E2E do frontend
 ```
 
 ## Convenções compartilhadas com o frontend
