@@ -6,6 +6,7 @@ import { type App, createApp } from "@/app/create-app";
 import { createHonoServer } from "@/app/http/hono-adapter";
 import { createDb } from "@/db/client";
 import { users } from "@/db/schema";
+import { TERMS_VERSION } from "@/modules/auth";
 import type { MailMessage } from "@/shared/mailer";
 
 // Integração: banco REAL e exclusivo de testes (branch Neon `teste`, via .env.test). Nunca o .env de
@@ -57,7 +58,7 @@ export function setupIntegration() {
     const res = await server.request("/api/auth/sign-up/email", {
       method: "POST",
       headers: { "Content-Type": "application/json", Origin: config.betterAuthUrl },
-      body: JSON.stringify({ name, email, password: "Senha-Integracao-2026!" }),
+      body: JSON.stringify({ name, email, password: "Senha-Integracao-2026!", termsVersion: TERMS_VERSION }),
     });
     if (res.status !== 200) throw new Error(`cadastro falhou: ${res.status} ${await res.text()}`);
     const body = (await res.json()) as { user: { id: string } };

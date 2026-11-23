@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { afterAll, describe, expect, it, vi } from "vitest";
-import { users } from "@/db/schema";
+import { categories, users } from "@/db/schema";
+import { TERMS_VERSION } from "@/modules/auth";
 import { dueDateIn, monthOf, shiftMonth, todayIn } from "@/shared/dates";
 import { setupIntegration } from "./support";
 
@@ -37,6 +38,66 @@ describe("cadastro", () => {
     const { id } = await it_.signUp(); // o cadastro já abre a sessão
     const [row] = await it_.db.select({ lastLoginAt: users.lastLoginAt }).from(users).where(eq(users.id, id));
     expect(row?.lastLoginAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("termos e dados pessoais (LGPD)", () => {
+  it("cadastro sem aceitar os termos é recusado; com aceite, grava data e versão", async () => {
+    const res = await it_.server.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: it_.config.betterAuthUrl },
+      body: JSON.stringify({
+        name: "Sem aceite",
+        email: `it+${Date.now()}-sem@financecontrol.local`,
+        password: "Senha-Teste-2026!",
+      }),
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { code: string }).code).toBe("TERMS_NOT_ACCEPTED");
+
+    const { id } = await it_.signUp();
+    const [row] = await it_.db
+      .select({ at: users.termsAcceptedAt, version: users.termsVersion })
+      .from(users)
+      .where(eq(users.id, id));
+    expect(row?.version).toBe(TERMS_VERSION);
+    expect(row?.at).toBeInstanceOf(Date);
+  });
+
+  it("baixar meus dados: JSON com tudo do usuário, sem userId", async () => {
+    const { cookie, email } = await it_.signUp();
+    const res = await it_.server.request("/api/v1/exports/me", { headers: { cookie } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toMatch(/financecontrol-meus-dados-\d{4}-\d{2}-\d{2}\.json/);
+    const text = await res.text();
+    const data = JSON.parse(text) as { profile: { email: string }; categories: unknown[]; valueSources: unknown[] };
+    expect(data.profile.email).toBe(email);
+    expect(data.categories).toHaveLength(10);
+    expect(data.valueSources).toHaveLength(1);
+    expect(text).not.toMatch(/"userId"|senha|password/i);
+  });
+
+  it("excluir a conta com a senha apaga o usuário e os dados em cascata", async () => {
+    const { id, cookie } = await it_.signUp();
+    const deleteWith = (body: object) =>
+      it_.server.request("/api/auth/delete-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: it_.config.betterAuthUrl, cookie },
+        body: JSON.stringify(body),
+      });
+    // Conta com senha: a sessão recente não basta (proteção contra sessão roubada).
+    const withoutPassword = await deleteWith({});
+    expect(withoutPassword.status).toBe(400);
+    expect(((await withoutPassword.json()) as { code: string }).code).toBe("PASSWORD_REQUIRED");
+    expect((await deleteWith({ password: "senha-errada" })).status).toBe(400);
+    const ok = await it_.server.request("/api/auth/delete-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: it_.config.betterAuthUrl, cookie },
+      body: JSON.stringify({ password: "Senha-Integracao-2026!" }),
+    });
+    expect(ok.status).toBe(200);
+    expect(await it_.db.select({ id: users.id }).from(users).where(eq(users.id, id))).toEqual([]);
+    expect(await it_.db.select({ id: categories.id }).from(categories).where(eq(categories.userId, id))).toEqual([]);
   });
 });
 

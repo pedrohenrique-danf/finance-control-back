@@ -21,6 +21,9 @@ export const users = pgTable(
     image: text("imagem"), // exigido por login social; diverge do ER
     active: boolean("ativo").notNull().default(true),
     lastLoginAt: timestamp("ultimo_login_em", { withTimezone: true }),
+    // Aceite dos termos de uso e da política de privacidade (LGPD): quando e qual versão. Gravado na criação.
+    termsAcceptedAt: timestamp("termos_aceitos_em", { withTimezone: true }),
+    termsVersion: varchar("termos_versao", { length: 20 }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

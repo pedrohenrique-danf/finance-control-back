@@ -65,6 +65,19 @@ Os schemas Zod do backend são a referência do contrato. O frontend mantém esp
 - *Rate limiting* do Better Auth explícito em `auth.factory.ts`, ligado só em produção: 100 requisições/min por IP no geral; login 10/min, cadastro 5/min, pedido de redefinição 3/min e redefinição 5/min. O armazenamento é em memória (vale enquanto houver uma única instância no Render).
 - Upload da importação: o corpo é lido com limite (`parseFormData`, 5 MB + folga do multipart); acima disso a leitura para e a resposta é 400 no campo `file`.
 
+### LGPD: termos, aceite, exclusão e portabilidade
+
+- **Aceite:** o cadastro por e-mail exige `termsVersion` igual a `TERMS_VERSION` (`src/modules/auth/terms.ts`), senão
+  400 `TERMS_NOT_ACCEPTED`. O hook `user.create.before` grava `termos_aceitos_em` (hora do servidor) e `termos_versao`.
+  No login com Google, a tela avisa que continuar é aceitar; o primeiro login grava a versão vigente.
+- **Nova versão dos termos:** mude `TERMS_VERSION` aqui e no frontend no mesmo PR. Pedir novo aceite de quem aceitou
+  uma versão antiga ainda não está implementado.
+- **Excluir conta:** `deleteUser` do Better Auth (`POST /api/auth/delete-user`). Conta com senha: a senha é obrigatória
+  (hook `requirePasswordToDeleteAccount`, 400 `PASSWORD_REQUIRED`), para uma sessão roubada não bastar. Conta só do
+  Google: basta a sessão criada há menos de 1 dia. Todas as tabelas do usuário têm `ON DELETE CASCADE`.
+- **Portabilidade:** `GET /api/v1/exports/me` devolve um JSON com perfil, categorias, contas, transações, despesas
+  fixas, notificações, preferências e histórico de importação/exportação, sem `userId` nem dados de autenticação.
+
 ### Dados e segredos
 
 - Respostas nunca incluem `userId`, hash, tokens, stack trace ou SQL.

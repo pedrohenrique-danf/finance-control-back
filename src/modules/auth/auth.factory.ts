@@ -6,7 +6,9 @@ import type { Database } from "@/db/client";
 import { accounts, sessions, users, verifications } from "@/db/schema";
 import type { Logger } from "@/shared/logger";
 import type { Mailer } from "@/shared/mailer";
+import { requirePasswordToDeleteAccount } from "./delete-account";
 import { passwordResetEmail } from "./password-reset-email";
+import { termsAcceptance } from "./terms";
 
 /** Validade do link de redefinição de senha. */
 const RESET_PASSWORD_TTL_SECONDS = 60 * 60;
@@ -65,10 +67,34 @@ export function createAuth(deps: AuthDeps) {
         "/sign-up/email": { window: 60, max: 5 },
         "/request-password-reset": { window: 60, max: 3 },
         "/reset-password": { window: 60, max: 5 },
+        "/delete-user": { window: 60, max: 5 },
       },
     },
+    user: {
+      // Aceite dos termos (LGPD). termsVersion vem do cadastro por e-mail; termsAcceptedAt só o servidor grava.
+      additionalFields: {
+        termsVersion: { type: "string", required: false, input: true },
+        termsAcceptedAt: { type: "date", required: false, input: false },
+      },
+      // Excluir conta (Perfil): com a senha (contas de e-mail) ou sessão recente (Google, até 1 dia).
+      // Os dados do usuário saem em cascata (ON DELETE CASCADE em todas as tabelas).
+      deleteUser: {
+        enabled: true,
+        afterDelete: async (user) => {
+          logger.info("user_deleted", { userId: user.id });
+        },
+      },
+    },
+    hooks: { before: requirePasswordToDeleteAccount },
     databaseHooks: {
-      ...(onUserCreated ? { user: { create: { after: async (user) => onUserCreated(user.id) } } } : {}),
+      user: {
+        create: {
+          before: async (user, ctx) => ({
+            data: { ...user, ...termsAcceptance(user, ctx?.path, new Date()) },
+          }),
+          ...(onUserCreated ? { after: async (user) => onUserCreated(user.id) } : {}),
+        },
+      },
       // Último login: preenchido a cada sessão criada (e-mail/senha ou Google). Falha não impede o login.
       session: {
         create: {
