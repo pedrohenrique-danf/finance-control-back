@@ -16,7 +16,7 @@ export const valueSourceTypes = [
 ] as const;
 
 export const dataOperationTypes = ["importacao", "exportacao"] as const;
-export const dataFormats = ["csv", "xlsx", "pdf"] as const;
+export const dataFormats = ["csv", "xlsx", "pdf", "ofx"] as const;
 export const dataOperationStatuses = ["pendente", "processando", "concluida", "concluida_com_erros", "falhou"] as const;
 
 /** Uma por ação do usuário dentro do app; o usuário escolhe quais quer receber (preferencias_notificacao). */

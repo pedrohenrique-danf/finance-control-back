@@ -344,10 +344,29 @@ o pagamento da fatura vem com `suggestedSkip: true` (já aparece no extrato da c
 "Total de entradas"/"Total de saídas" de cada dia define receita/despesa; a descrição junta o tipo do lançamento
 e a contraparte ("Transferência recebida pelo Pix — FULANO").
 
+**CSV de bancos** (`parsers/bank-csv.ts`, `source: "csv_banco"`): quando o CSV não está no formato do app, o
+leitor procura nas primeiras 40 linhas um cabeçalho com data, descrição e valor (ou débito e crédito), testando
+os separadores `;` `,` tab e `|`. Colunas por sinônimos sem acento ("Data Lançamento", "Histórico", "title",
+"Valor (R$)", "Crédito"/"Débito", "D/C"...); arquivo em UTF-8 ou Windows-1252; valores `1.234,56`, `1234.56`,
+`(50,00)`, `50,00-`; datas `dd/mm/aaaa`, `dd/mm/aa`, `dd-mm-aaaa`, ISO. Direção: colunas débito/crédito, depois
+coluna de tipo, depois o sinal (na fatura do cartão, positivo é compra). Linhas de saldo e totais são ignoradas.
+Testado com os layouts de Nubank (conta e cartão), Inter, Mercado Pago e débito/crédito separados.
+
+**OFX** (`parsers/ofx.ts`, `source: "ofx"`, `formato = "ofx"`): OFX 1.x (SGML) e 2.x (XML), exportado pela
+maioria dos bancos. Cada `<STMTTRN>` vira uma linha; o sinal de `TRNAMT` define receita/despesa; descrição de
+`MEMO`/`NAME`; período de `DTSTART`/`DTEND`; banco pelo `BANKID` (código COMPE) ou `ORG`; `<CCSTMTRS>` indica
+fatura de cartão.
+
+**Banco novo em PDF:** crie `parsers/<banco>-<tipo>.ts` com `detect(lines)` e `parse(lines)` e registre em
+`parsers/pdf-statements.ts` (a ordem da lista é a ordem de detecção). Teste com um PDF gerado por
+`test-support/make-pdf.ts` que reproduza o layout, sem dados reais.
+
 **Fluxo em duas etapas:**
 
-1. `POST /imports/preview` (multipart, campo `file`) → `{ source, fileName, period, rows[], errors[] }`, sem gravar.
-   `source`: `csv | nubank_fatura | nubank_extrato`; cada linha traz `date`, `description`, `amount`, `type`,
+1. `POST /imports/preview` (multipart, campo `file`) → `{ source, format, institution, kind, fileName, period,
+   rows[], errors[] }`, sem gravar. `source`: `csv | csv_banco | ofx | nubank_fatura | nubank_extrato`; `format`:
+   `csv | pdf | ofx` (o que vai no POST de confirmação); `institution`: banco identificado ou `null`; `kind`:
+   `conta | cartao | null`. Cada linha traz `date`, `description`, `amount`, `type`,
    `nature`, `status`, `categoryName`, `accountName`, `installment`, `suggestedSkip`, `note`.
 2. `POST /imports` com as linhas revisadas (o usuário escolhe conta e categorias e desmarca o que não quer):
 
@@ -355,7 +374,7 @@ e a contraparte ("Transferência recebida pelo Pix — FULANO").
 export const confirmImportSchema = z
   .object({
     fileName: z.string().trim().min(1).max(255),
-    format: z.enum(dataFormats), // "csv" | "pdf"
+    format: z.enum(dataFormats), // "csv" | "pdf" | "ofx"
     rows: z
       .array(
         z.object({

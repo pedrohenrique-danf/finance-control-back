@@ -43,6 +43,13 @@
       "when": 1795454255525,
       "tag": "0005_termos_aceite",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795464084748,
+      "tag": "0006_formato_ofx",
+      "breakpoints": true
     }
   ]
 }
