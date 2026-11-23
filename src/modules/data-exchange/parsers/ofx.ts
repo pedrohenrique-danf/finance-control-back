@@ -2,6 +2,7 @@ import { MIN_DATE, maxTransactionDate } from "@/shared/schemas";
 import type { ImportRow, ImportRowError, StatementKind } from "../import.types";
 import { MAX_ROWS } from "./csv";
 import { institutionFromCode, institutionFromText } from "./institutions";
+import { INTERNAL_TRANSFER_NOTE, isInternalTransfer } from "./internal-transfers";
 import { fold, parseFlexibleAmount, parseFlexibleDate } from "./pt-br";
 
 // OFX (Open Financial Exchange), exportado pela maioria dos bancos (Itaú, Bradesco, BB, Caixa, Santander,
@@ -98,6 +99,7 @@ export function parseOfx(text: string, fileName = ""): OfxResult {
     const type = money.negative ? "despesa" : "receita";
     const folded = fold(description);
     const isCardPayment = kind === "cartao" && type === "receita" && CARD_PAYMENT.test(folded);
+    const internal = !isCardPayment && isInternalTransfer(description);
     const installment = INSTALLMENT.exec(folded);
     rows.push({
       line: index,
@@ -110,8 +112,12 @@ export function parseOfx(text: string, fileName = ""): OfxResult {
       categoryName: null,
       accountName: null,
       installment: installment ? `${installment[1]}/${installment[2]}` : null,
-      suggestedSkip: isCardPayment,
-      note: isCardPayment ? "Pagamento da fatura: já aparece como saída no extrato da conta." : null,
+      suggestedSkip: isCardPayment || internal,
+      note: isCardPayment
+        ? "Pagamento da fatura: já aparece como saída no extrato da conta."
+        : internal
+          ? INTERNAL_TRANSFER_NOTE
+          : null,
     });
   }
   if (index === 0) {

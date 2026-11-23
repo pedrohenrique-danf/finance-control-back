@@ -350,7 +350,15 @@ os separadores `;` `,` tab e `|`. Colunas por sinônimos sem acento ("Data Lanç
 "Valor (R$)", "Crédito"/"Débito", "D/C"...); arquivo em UTF-8 ou Windows-1252; valores `1.234,56`, `1234.56`,
 `(50,00)`, `50,00-`; datas `dd/mm/aaaa`, `dd/mm/aa`, `dd-mm-aaaa`, ISO. Direção: colunas débito/crédito, depois
 coluna de tipo, depois o sinal (na fatura do cartão, positivo é compra). Linhas de saldo e totais são ignoradas.
-Testado com os layouts de Nubank (conta e cartão), Inter, Mercado Pago e débito/crédito separados.
+Uma coluna "tipo" descritiva ("Pix enviado") entra no começo da descrição. Testado com os layouts de Nubank
+(conta e cartão), Inter, Mercado Pago, PicPay e débito/crédito separados.
+
+**PDF do PicPay** (`parsers/picpay-account.ts`, `source: "picpay_extrato"`): extrato de conta com um bloco por dia
+("19 de novembro 2026 · Saldo ao final do dia"), colunas Hora, Tipo, Origem/Destino, Forma de pagamento e Valor
+(sinal define a direção). Origem/destino quebrado em várias linhas é juntado pela proximidade vertical.
+
+**Reservas do próprio banco** (`parsers/internal-transfers.ts`): cofrinho, caixinha, porquinho, aplicação/resgate
+automáticos vêm com `suggestedSkip: true` nos CSVs, OFX e PDF do PicPay (não são receita nem despesa).
 
 **OFX** (`parsers/ofx.ts`, `source: "ofx"`, `formato = "ofx"`): OFX 1.x (SGML) e 2.x (XML), exportado pela
 maioria dos bancos. Cada `<STMTTRN>` vira uma linha; o sinal de `TRNAMT` define receita/despesa; descrição de
@@ -364,7 +372,7 @@ fatura de cartão.
 **Fluxo em duas etapas:**
 
 1. `POST /imports/preview` (multipart, campo `file`) → `{ source, format, institution, kind, fileName, period,
-   rows[], errors[] }`, sem gravar. `source`: `csv | csv_banco | ofx | nubank_fatura | nubank_extrato`; `format`:
+   rows[], errors[] }`, sem gravar. `source`: `csv | csv_banco | ofx | nubank_fatura | nubank_extrato | picpay_extrato`; `format`:
    `csv | pdf | ofx` (o que vai no POST de confirmação); `institution`: banco identificado ou `null`; `kind`:
    `conta | cartao | null`. Cada linha traz `date`, `description`, `amount`, `type`,
    `nature`, `status`, `categoryName`, `accountName`, `installment`, `suggestedSkip`, `note`.

@@ -1,6 +1,7 @@
 import type { ImportSource, ParsedStatement, PdfLine, StatementKind } from "../import.types";
 import { isNubankAccountStatement, parseNubankAccountStatement } from "./nubank-account";
 import { isNubankCardStatement, parseNubankCardStatement } from "./nubank-card";
+import { isPicPayAccountStatement, parsePicPayAccountStatement } from "./picpay-account";
 
 /**
  * Leitor de PDF de um banco. Para suportar um banco novo: crie parsers/<banco>-<tipo>.ts com `detect` e
@@ -30,7 +31,14 @@ export const PDF_STATEMENT_READERS: readonly PdfStatementReader[] = [
     detect: isNubankAccountStatement,
     parse: parseNubankAccountStatement,
   },
+  {
+    source: "picpay_extrato",
+    institution: "PicPay",
+    kind: "conta",
+    detect: isPicPayAccountStatement,
+    parse: parsePicPayAccountStatement,
+  },
 ];
 
 /** Bancos com PDF suportado, para a mensagem de arquivo não reconhecido. */
-export const PDF_SUPPORTED_LABEL = "fatura do cartão ou extrato da conta do Nubank";
+export const PDF_SUPPORTED_LABEL = "fatura e extrato do Nubank e extrato do PicPay";

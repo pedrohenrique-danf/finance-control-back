@@ -73,7 +73,7 @@ export function createImportPreviewService(deps: ImportPreviewDeps) {
         throw new ValidationError([
           {
             path: "file",
-            message: `PDF não reconhecido. Por enquanto lemos a ${PDF_SUPPORTED_LABEL}. Dos outros bancos, envie o extrato em OFX ou CSV.`,
+            message: `PDF não reconhecido. Por enquanto lemos PDFs de: ${PDF_SUPPORTED_LABEL}. Dos outros bancos, envie o extrato em OFX ou CSV.`,
           },
         ]);
       }
