@@ -79,7 +79,9 @@ O ER lista `usuarios` (com `senha_hash`), `identidades_oauth` e `tokens_usuario`
 2. `db:generate` (use `--name` descritivo).
 3. **Revisar o SQL gerado** (renomeações viram drop/create se mal interpretadas).
 4. Commitar schema **e** `drizzle/` no mesmo commit.
-5. `db:migrate` na branch Neon `desenvolvimento` (o `.env` local aponta para ela); depois `db:migrate:test` na branch `teste`; depois `production` (antes do deploy da aplicação).
+5. `db:migrate` na branch Neon `desenvolvimento` (o `.env` local aponta para ela); depois `db:migrate:test` na branch `teste`. Em `production` as migrações rodam sozinhas no deploy: o script `start`
+   executa `dist/migrate.js` (migrador do Drizzle, idempotente, pela `DATABASE_URL_DIRECT` quando existir) antes do
+   servidor; se uma migração falhar, o servidor não sobe e o deploy anterior continua no ar.
 6. `db:check` na CI para garantir schema ↔ histórico sincronizados.
 
 Proibido: `drizzle-kit push` em ambientes compartilhados; editar migração já aplicada; alterar tabela pelo painel do Neon. Correção = **nova migração** (Drizzle não tem *down*). Use `DATABASE_URL_DIRECT` para migrar.
