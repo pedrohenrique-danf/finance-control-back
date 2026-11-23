@@ -35,10 +35,8 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...base, SMTP_HOST: "smtp.gmail.com" })).toThrow(/SMTP_HOST/);
   });
 
-  it("exige SMTP em produção", () => {
-    expect(() => loadConfig({ ...base, NODE_ENV: "production", CORS_ORIGINS: "https://app.com" })).toThrow(
-      /SMTP é obrigatório/,
-    );
+  it("produção sobe sem SMTP (os e-mails ficam desligados)", () => {
+    expect(loadConfig({ ...base, NODE_ENV: "production", CORS_ORIGINS: "https://app.com" }).mail).toBeUndefined();
   });
 
   it("monta a configuração de e-mail (porta 465 = TLS direto)", () => {

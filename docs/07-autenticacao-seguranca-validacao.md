@@ -21,8 +21,9 @@ Definir a integração do **Better Auth** no backend, a proteção de rotas (pad
   configurado em 03) com o link do Better Auth (`/api/auth/reset-password/:token`), que valida o token e redireciona
   para a tela do front (`/reset-password?token=…`, ou `?error=INVALID_TOKEN`). Link válido por 60 minutos e de uso
   único; trocar a senha encerra todas as sessões (`revokeSessionsOnPasswordReset`). O envio não é aguardado: a
-  resposta é igual (e no mesmo tempo) para e-mail com ou sem conta. Sem SMTP (só dev/test), o link vai para o log
-  (`email_not_sent_dev`); em produção o SMTP é obrigatório.
+  resposta é igual (e no mesmo tempo) para e-mail com ou sem conta. Sem SMTP em dev/test, o link vai para o log
+  (`email_not_sent_dev`). Em produção sem SMTP o backend sobe, mas o e-mail não sai: só o aviso
+  `smtp_not_configured` na inicialização e `email_not_sent_no_smtp` a cada pedido, sem destinatário nem link.
 - **Não implemente hash de senha**: o Better Auth já faz (RNF03). Nunca armazene senha em claro nem crie coluna de hash própria.
 - IDs em UUID: configure o Better Auth para gerar UUID e use colunas `uuid` (ver 06).
 - **Dados iniciais do usuário novo:** o hook `databaseHooks.user.create.after` (cadastro por e-mail ou primeiro login

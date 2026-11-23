@@ -96,7 +96,7 @@ Regras: um módulo **não importa arquivos internos** de outro; usa o que o `ind
 | `BETTER_AUTH_URL` | sim | URL pública do backend |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | opcional (par) | login com Google |
 | `CORS_ORIGINS` | obrigatória em produção | origens permitidas, separadas por vírgula |
-| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | obrigatórias em produção (juntas) | e-mail de recuperação de senha; em dev/test, sem elas o link vai para o log |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` / `MAIL_FROM` | não (mas juntas) | e-mail de recuperação de senha; sem elas o e-mail não sai: em dev/test o link vai para o log, em produção só o aviso `smtp_not_configured` |
 | `SMTP_PORT` | não (default `587`) | `587` = STARTTLS obrigatório; `465` = TLS direto |
 | `LOG_LEVEL` | não (default `info`) | `debug` \| `info` \| `warn` \| `error` |
 
