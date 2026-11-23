@@ -75,6 +75,16 @@ describe("CSV padrão Excel pt-BR", () => {
     expect(rows[2]).toMatchObject({ categoryName: null, accountName: null });
   });
 
+  it("recusa datas fora do intervalo (antes de 2000 ou mais de 1 ano à frente)", () => {
+    const csv = [header, "31/12/1999;Antiga;10,00;despesa;;;;", "01/01/2999;Futura;10,00;despesa;;;;"].join("\n");
+    const { rows, errors } = parseTransactionsCsv(csv);
+    expect(rows).toEqual([]);
+    expect(errors.map((e) => [e.line, e.field])).toEqual([
+      [2, "data"],
+      [3, "data"],
+    ]);
+  });
+
   it("aponta o erro por linha e campo, sem interromper as demais", () => {
     const csv = [
       header,

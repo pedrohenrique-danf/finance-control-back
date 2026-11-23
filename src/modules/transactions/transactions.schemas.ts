@@ -8,14 +8,14 @@ import {
   transactionStatuses,
   transactionTypes,
 } from "@/shared/enums";
-import { isoDateSchema, monthSchema, moneySchema } from "@/shared/schemas";
+import { isoDateSchema, moneySchema, monthSchema, transactionDateSchema } from "@/shared/schemas";
 
 const fields = {
   type: z.enum(transactionTypes),
   nature: z.enum(transactionNatures).nullable().optional(),
   description: z.string().trim().min(1).max(160),
   amount: moneySchema,
-  date: isoDateSchema,
+  date: transactionDateSchema,
   status: z.enum(transactionStatuses).default("efetivada"), // coluna status (default do banco)
   categoryId: z.uuid().nullable().optional(),
   valueSourceId: z.uuid().nullable().optional(),

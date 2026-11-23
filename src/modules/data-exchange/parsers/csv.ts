@@ -1,3 +1,4 @@
+import { MIN_DATE, maxTransactionDate } from "@/shared/schemas";
 import type { ImportRow, ImportRowError } from "../import.types";
 import { fold, parseBrlAmount, parseCsvDate } from "./pt-br";
 
@@ -97,6 +98,7 @@ export function parseTransactionsCsv(text: string): { rows: ImportRow[]; errors:
       const position = index.get(column);
       return position === undefined ? "" : (cells[position] ?? "");
     };
+    const errorsBefore = errors.length;
     const fail = (field: Column, message: string) => errors.push({ line: lineNumber, field, message, content: raw });
 
     const date = parseCsvDate(get("data"));
@@ -107,6 +109,9 @@ export function parseTransactionsCsv(text: string): { rows: ImportRow[]; errors:
     const status = statusOf(get("situacao"));
 
     if (!date) fail("data", "Data inválida (use dd/mm/aaaa).");
+    else if (date < MIN_DATE || date > maxTransactionDate()) {
+      fail("data", "Data fora do intervalo (de 01/01/2000 até 1 ano a partir de hoje).");
+    }
     if (!description) fail("descricao", "Descrição vazia.");
     if (!money || money.negative || Number(money.amount) <= 0)
       fail("valor", "Valor inválido (use 1.234,56, positivo).");
@@ -115,6 +120,7 @@ export function parseTransactionsCsv(text: string): { rows: ImportRow[]; errors:
       fail("natureza", 'Natureza deve ser "fixa", "variavel" ou vazia.');
     }
     if (!status) fail("situacao", 'Situação deve ser "efetivada" ou "pendente".');
+    if (errors.length > errorsBefore) continue; // linha com qualquer erro não vira transação
     if (!date || !description || !money || money.negative || Number(money.amount) <= 0) continue;
     if ((type !== "receita" && type !== "despesa") || !status) continue;
     if (natureRaw !== "" && natureRaw !== "fixa" && natureRaw !== "variavel") continue;

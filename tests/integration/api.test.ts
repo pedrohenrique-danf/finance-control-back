@@ -1,4 +1,6 @@
+import { eq } from "drizzle-orm";
 import { afterAll, describe, expect, it, vi } from "vitest";
+import { users } from "@/db/schema";
 import { dueDateIn, monthOf, shiftMonth, todayIn } from "@/shared/dates";
 import { setupIntegration } from "./support";
 
@@ -29,6 +31,28 @@ describe("cadastro", () => {
     expect(accounts).toMatchObject([
       { name: "Carteira", type: "carteira", initialBalance: "0.00", currentBalance: "0.00" },
     ]);
+  });
+
+  it("registra o último login a cada sessão criada", async () => {
+    const { id } = await it_.signUp(); // o cadastro já abre a sessão
+    const [row] = await it_.db.select({ lastLoginAt: users.lastLoginAt }).from(users).where(eq(users.id, id));
+    expect(row?.lastLoginAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("upload da importação", () => {
+  it("recusa arquivo acima de 5 MB com 400 no campo file", async () => {
+    const { cookie } = await it_.signUp();
+    const form = new FormData();
+    form.set("file", new File([new Uint8Array(6 * 1024 * 1024)], "grande.csv", { type: "text/csv" }));
+    const res = await it_.server.request("/api/v1/imports/preview", {
+      method: "POST",
+      body: form,
+      headers: { cookie },
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: { details: unknown } };
+    expect(body.error.details).toEqual([{ path: "file", message: "Arquivo maior que 5 MB." }]);
   });
 });
 

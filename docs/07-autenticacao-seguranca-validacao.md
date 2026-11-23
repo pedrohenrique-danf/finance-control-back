@@ -53,7 +53,7 @@ Duas camadas, ambas obrigatórias:
 
 Mais uma barreira: **constraints do PostgreSQL** (FK, unique, check) como última linha de defesa.
 
-Datas retroativas: definir limites mínimo/máximo aceitos **[PENDENTE DE DEFINIÇÃO]**; sempre rejeite datas de calendário inexistentes (ex.: `2026-02-30`).
+Datas de lançamento (criar, editar e importar): de `2000-01-01` (`MIN_DATE`, também no check `ck_transacoes_data`) até **1 ano depois de hoje** (`transactionDateSchema`, recalculado a cada validação). Filtros e o término das despesas fixas não têm limite futuro. Sempre rejeite datas de calendário inexistentes (ex.: `2026-02-30`).
 
 Os schemas Zod do backend são a referência do contrato. O frontend mantém espelho sincronizado (ver frontend 02).
 
@@ -62,7 +62,8 @@ Os schemas Zod do backend são a referência do contrato. O frontend mantém esp
 - CORS: permita **somente** origens de `CORS_ORIGINS`. Nunca `*` com credenciais.
 - Cookie de sessão: `httpOnly`, `secure` em produção, `SameSite=Lax` (padrão) — salvo decisão por origens distintas.
 - Mantenha a proteção de origem (CSRF) do Better Auth ativa via `trustedOrigins`.
-- Confirme o *rate limiting* do Better Auth em produção.
+- *Rate limiting* do Better Auth explícito em `auth.factory.ts`, ligado só em produção: 100 requisições/min por IP no geral; login 10/min, cadastro 5/min, pedido de redefinição 3/min e redefinição 5/min. O armazenamento é em memória (vale enquanto houver uma única instância no Render).
+- Upload da importação: o corpo é lido com limite (`parseFormData`, 5 MB + folga do multipart); acima disso a leitura para e a resposta é 400 no campo `file`.
 
 ### Dados e segredos
 
@@ -273,7 +274,7 @@ Regras (serviço):
   (`materialize`, doc 06): transações `pendente`, `origem = "recorrencia"`, natureza `fixa` (despesa) ou `null`
   (receita). O índice único (`recorrencia_id`, `data`) torna tudo idempotente.
 - **Meses seguintes: materialização sob demanda** (adotada na implementação; **aguarda confirmação** do responsável,
-  item 3 do README). Antes das leituras que mostram transações (`GET /transactions`, `/dashboard/summary`,
+  item 2 do README). Antes das leituras que mostram transações (`GET /transactions`, `/dashboard/summary`,
   `/recurrences/:id` e a exportação), `materializeDue` lança os meses que faltam até o mês corrente. A coluna
   `recorrencias.ultimo_mes_materializado` (migração `0003`) guarda até onde já foi lançado; a próxima rodada continua
   do mês seguinte, então **uma ocorrência excluída pelo usuário não volta**. Sem job agendado nem infraestrutura extra.

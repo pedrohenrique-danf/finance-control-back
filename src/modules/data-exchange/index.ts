@@ -5,8 +5,8 @@ import type { ReferenceLookups } from "@/shared/references";
 import { createDataExchangeRoutes } from "./data-exchange.routes";
 import { createExchangeRepository } from "./exchange.repository";
 import { createExchangeService } from "./exchange.service";
-import { createImportPreviewService } from "./import-preview.service";
 import type { PdfLine } from "./import.types";
+import { createImportPreviewService } from "./import-preview.service";
 
 export { buildTransactionsCsv } from "./exchange.service";
 export type { ImportPreview, ImportRow, ImportRowError, ImportSource } from "./import.types";

@@ -3,8 +3,14 @@ import { isRealCalendarDate } from "./dates";
 
 // Schemas de borda reutilizados pelos módulos (docs/07, "Validação").
 
-/** Limite mínimo das datas de transação (ck_transacoes_data). O máximo segue [PENDENTE DE DEFINIÇÃO]. */
+/** Limite mínimo das datas de transação (ck_transacoes_data). */
 export const MIN_DATE = "2000-01-01";
+
+/** Limite máximo da data de um lançamento: até 1 ano depois de hoje (UTC). Calculado a cada validação. */
+export function maxTransactionDate(now = new Date()): string {
+  const limit = new Date(Date.UTC(now.getUTCFullYear() + 1, now.getUTCMonth(), now.getUTCDate()));
+  return limit.toISOString().slice(0, 10);
+}
 
 /** Valor positivo com ponto decimal e até 2 casas ("89.90"). */
 export const moneySchema = z
@@ -20,6 +26,12 @@ export const isoDateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Use o formato YYYY-MM-DD.")
   .refine(isRealCalendarDate, "Data inexistente.")
   .refine((v) => v >= MIN_DATE, `Data anterior a ${MIN_DATE}.`);
+
+/** Data de um lançamento (criar, editar, importar): a partir de MIN_DATE e até 1 ano à frente. */
+export const transactionDateSchema = isoDateSchema.refine(
+  (v) => v <= maxTransactionDate(),
+  "Use uma data até 1 ano a partir de hoje.",
+);
 
 export const monthSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use o formato YYYY-MM.");
 

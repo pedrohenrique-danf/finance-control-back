@@ -1,10 +1,13 @@
 import { json } from "@/app/http/responses";
 import { type RouteDefinition, requireUser } from "@/app/http/types";
-import { parseBody, parseQuery } from "@/app/http/validation";
+import { parseBody, parseFormData, parseQuery } from "@/app/http/validation";
 import { ValidationError } from "@/shared/errors";
 import { confirmImportSchema, exportQuerySchema } from "./exchange.schemas";
 import type { ExchangeService } from "./exchange.service";
-import type { ImportPreviewService } from "./import-preview.service";
+import { type ImportPreviewService, MAX_FILE_BYTES } from "./import-preview.service";
+
+/** Limite do corpo do upload: o arquivo (5 MB) + folga para o envelope multipart. */
+const MAX_UPLOAD_BYTES = MAX_FILE_BYTES + 64 * 1024;
 
 /**
  * Importar e exportar (RF07, docs/07). A importação tem duas etapas: POST /imports/preview lê o arquivo e
@@ -21,12 +24,8 @@ export function createDataExchangeRoutes(deps: {
       access: "private",
       handler: async (req, ctx) => {
         requireUser(ctx);
-        let form: FormData;
-        try {
-          form = await req.formData();
-        } catch {
-          throw new ValidationError([{ path: "file", message: "Envie o arquivo como multipart/form-data." }]);
-        }
+        // Para de ler acima do limite (arquivo + folga do envelope multipart), antes de carregar tudo na memória.
+        const form = await parseFormData(req, MAX_UPLOAD_BYTES, "Arquivo maior que 5 MB.");
         const file = form.get("file");
         if (!(file instanceof File)) throw new ValidationError([{ path: "file", message: "Arquivo ausente." }]);
         const preview = await deps.preview.preview({

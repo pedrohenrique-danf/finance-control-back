@@ -69,7 +69,7 @@ O ER lista `usuarios` (com `senha_hash`), `identidades_oauth` e `tokens_usuario`
 - `contas` substitui `identidades_oauth` (índices `uq_contas_provedor_conta` e `uq_contas_usuario_provedor` equivalem aos do ER).
 - `verificacoes` substitui `tokens_usuario`; `sessoes` foi acrescentada.
 - O schema de auth é mantido manualmente em `src/db/schema/auth.ts`. Ao atualizar o Better Auth, confira os campos com `@better-auth/cli generate`.
-- `usuarios.ultimo_login_em` ainda não é preenchido; exige um hook do Better Auth (pendente).
+- `usuarios.ultimo_login_em` é preenchido a cada sessão criada (hook `session.create.after` do Better Auth em `auth.factory.ts`).
 - Comentários (`COMMENT ON`) do modelo ficam na migração custom `0001_comentarios`.
 - FKs não são `DEFERRABLE` (o Drizzle não suporta); nenhuma regra do projeto depende disso.
 
