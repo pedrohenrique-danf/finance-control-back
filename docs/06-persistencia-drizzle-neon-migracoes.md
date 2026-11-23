@@ -9,7 +9,7 @@ Definir como o schema do banco é modelado (Drizzle), como as tabelas evoluem (m
 ## Escopo
 
 **Cobre:** schema, relações, integridade, cliente de banco, repositórios, consultas agregadas, projeção de recorrências (RF04), fluxo de migração, seed, testes de integridade.
-**Não cobre:** configuração do Better Auth (07). Tabelas de notificações (`notificacoes`, `preferencias_notificacao`) **já existem no banco** (migração `0000_schema_inicial`), mas a funcionalidade está fora do MVP: não crie módulos/rotas para elas agora.
+**Não cobre:** configuração do Better Auth (07). Tabelas de notificações (`notificacoes`, `preferencias_notificacao`): avisos das ações do usuário e quais tipos ele quer receber (módulo `notifications`, regras em 07). A migração `0004_notificacoes_por_acao` trocou os tipos genéricos pelos tipos por ação e removeu `horario_preferido`/`antecedencia_dias` (sem lembretes agendados).
 
 ## Regras e padrões
 
@@ -57,7 +57,7 @@ Definir como o schema do banco é modelado (Drizzle), como as tabelas evoluem (m
 | `transacoes` | `transactions` | RF03, RF05, RF06 |
 | `recorrencias` | `recurrences` | RF04 |
 | `importacoes_exportacoes`, `importacao_erros` | `dataOperations`, `importErrors` | RF07 |
-| `notificacoes`, `preferencias_notificacao` (só estrutura, pós-MVP) | `notifications`, `notificationPreferences` | — |
+| `notificacoes`, `preferencias_notificacao` | `notifications`, `notificationPreferences` | — |
 
 Valores de domínio (CHECK constraints) são em pt-BR, iguais ao modelo físico (`'receita'`, `'despesa'`, `'fixa'`, `'variavel'`...), e vêm de `src/shared/enums.ts`.
 

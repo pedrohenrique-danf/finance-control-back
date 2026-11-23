@@ -1,3 +1,4 @@
+import { type NotificationType, notificationTypes } from "@/shared/enums";
 import { NotFoundError } from "@/shared/errors";
 import type { Logger } from "@/shared/logger";
 import type { NewNotification, NotificationDto, NotificationsRepository } from "./notifications.repository";
@@ -7,12 +8,17 @@ export interface Notifier {
   notify(userId: string, input: NewNotification): Promise<void>;
 }
 
+export interface NotificationPreferenceDto {
+  type: NotificationType;
+  active: boolean;
+}
+
 export function createNotificationsService(deps: { repository: NotificationsRepository; logger: Logger }) {
   const { repository, logger } = deps;
   return {
     /**
      * Melhor esforço: a notificação é consequência da ação, não parte dela. Uma falha aqui vai para o log
-     * e não desfaz nem quebra a operação que já foi gravada.
+     * e não desfaz nem quebra a operação que já foi gravada. Tipo desligado nas preferências: não grava.
      */
     async notify(userId: string, input: NewNotification): Promise<void> {
       try {
@@ -39,6 +45,22 @@ export function createNotificationsService(deps: { repository: NotificationsRepo
 
     async markAllRead(userId: string, now: Date): Promise<{ updated: number }> {
       return { updated: await repository.markAllRead(userId, now) };
+    },
+
+    /** Todos os tipos, na ordem do contrato; sem preferência gravada = ativo. */
+    async listPreferences(userId: string): Promise<NotificationPreferenceDto[]> {
+      const muted = new Set(await repository.mutedTypes(userId));
+      return notificationTypes.map((type) => ({ type, active: !muted.has(type) }));
+    },
+
+    async setPreference(
+      userId: string,
+      type: NotificationType,
+      active: boolean,
+      now: Date,
+    ): Promise<NotificationPreferenceDto> {
+      await repository.setPreference(userId, type, active, now);
+      return { type, active };
     },
   };
 }

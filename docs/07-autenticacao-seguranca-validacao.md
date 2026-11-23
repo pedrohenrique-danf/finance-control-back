@@ -17,6 +17,12 @@ Definir a integração do **Better Auth** no backend, a proteção de rotas (pad
 
 - Better Auth roda **no backend**. Endpoints em `/api/auth/*` são servidos por `auth.handler(request)`.
 - Métodos: e-mail/senha e Google (Google habilitado só se as credenciais existirem).
+- **Recuperação de senha:** `POST /api/auth/request-password-reset` → o backend envia o e-mail (`Mailer`, SMTP
+  configurado em 03) com o link do Better Auth (`/api/auth/reset-password/:token`), que valida o token e redireciona
+  para a tela do front (`/reset-password?token=…`, ou `?error=INVALID_TOKEN`). Link válido por 60 minutos e de uso
+  único; trocar a senha encerra todas as sessões (`revokeSessionsOnPasswordReset`). O envio não é aguardado: a
+  resposta é igual (e no mesmo tempo) para e-mail com ou sem conta. Sem SMTP (só dev/test), o link vai para o log
+  (`email_not_sent_dev`); em produção o SMTP é obrigatório.
 - **Não implemente hash de senha**: o Better Auth já faz (RNF03). Nunca armazene senha em claro nem crie coluna de hash própria.
 - IDs em UUID: configure o Better Auth para gerar UUID e use colunas `uuid` (ver 06).
 - **Dados iniciais do usuário novo:** o hook `databaseHooks.user.create.after` (cadastro por e-mail ou primeiro login
@@ -372,10 +378,15 @@ registra a operação (`tipo = exportacao`) e gera a notificação `exportacao_p
 
 ### Notificações
 
-Geradas pelo backend a partir das ações (MVP): lançar transação, criar categoria, conta ou despesa fixa
-(`tipo = sistema`), concluir importação (`importacao_concluida`) e exportação (`exportacao_pronta`). Canal `app`;
-criadas com `status = enviada` e marcadas como `lida` pelo usuário. Lembretes e vencimentos
-(`lembrete_registro`, `vencimento_despesa`) e preferências por canal ficam para depois do MVP.
+**Só avisos de ações do usuário, dentro do app** (decisão do responsável): não há lembretes agendados, vencimentos,
+e-mail ou push. Um tipo por ação: `transacao_registrada` (inclui "repetir todo mês"), `recorrencia_criada`,
+`categoria_criada`, `conta_criada`, `importacao_concluida` e `exportacao_pronta`. Canal único `app`; criadas com
+`status = enviada` e marcadas como `lida` pelo usuário.
+
+**Preferências:** `GET /notification-preferences` → `{ data: [{ type, active }] }` com todos os tipos, na ordem acima.
+`PUT /notification-preferences/:type` com `{ "active": boolean }` (idempotente; tipo desconhecido → 400) devolve
+`{ type, active }`. Sem linha gravada, o tipo está ativo. Tipo desligado: a ação acontece normalmente e o aviso não é
+gravado (a checagem fica no próprio `INSERT ... WHERE NOT EXISTS`, uma ida ao banco).
 
 `GET /notifications?page=&pageSize=` → `{ data: [{ id, type, title, message, status, createdAt, readAt,
 transactionId, recurrenceId }], meta: { page, pageSize, total, unread } }`, mais recente primeiro.

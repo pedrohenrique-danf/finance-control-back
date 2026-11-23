@@ -78,7 +78,7 @@ export function createTransactionsService(deps: {
         created = await repository.insert(userId, data);
       }
       await notifier.notify(userId, {
-        type: "sistema",
+        type: "transacao_registrada",
         title: created.type === "receita" ? "Receita registrada" : "Despesa registrada",
         message: `${created.description} · ${formatBrl(created.amount)} em ${formatDateBr(created.date)}`,
         transactionId: created.id,

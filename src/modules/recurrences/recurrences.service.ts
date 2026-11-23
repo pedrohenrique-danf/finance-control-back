@@ -71,7 +71,7 @@ export function createRecurrencesService(deps: {
       await assertReferences(userId, input);
       const created = await repository.createAndMaterialize(userId, input, currentMonth(now));
       await notifier.notify(userId, {
-        type: "sistema",
+        type: "recorrencia_criada",
         title: created.type === "receita" ? "Receita fixa criada" : "Despesa fixa criada",
         message: `${created.description} · todo dia ${created.dueDay}`,
         recurrenceId: created.id,
@@ -105,7 +105,7 @@ export function createRecurrencesService(deps: {
       }
       const { recurrence, transactionId } = await repository.createFromTransaction(userId, input, currentMonth(now));
       await notifier.notify(userId, {
-        type: "sistema",
+        type: "recorrencia_criada",
         title: recurrence.type === "receita" ? "Receita fixa criada" : "Despesa fixa criada",
         message: `${recurrence.description} · todo dia ${recurrence.dueDay}`,
         recurrenceId: recurrence.id,

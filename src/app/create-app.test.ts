@@ -15,6 +15,7 @@ const testConfig: AppConfig = {
   betterAuthSecret: "x".repeat(32),
   betterAuthUrl: "http://localhost:3001",
   google: undefined,
+  mail: undefined,
   corsOrigins: [],
   logLevel: "error",
 };
@@ -103,6 +104,18 @@ describe("rotas de domínio (sem banco)", () => {
     const unknownField = await post(JSON.stringify({ name: "A", type: "despesa", color: "#000000", userId: "x" }));
     expect(unknownField.status).toBe(400);
     expect((await post("{")).status).toBe(400);
+  });
+
+  it("preferência de notificação: tipo desconhecido e corpo inválido → 400", async () => {
+    const put = (type: string, body: unknown) =>
+      signedIn.request(`/api/v1/notification-preferences/${type}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" },
+      });
+    expect((await put("lembrete_registro", { active: false })).status).toBe(400);
+    expect((await put("categoria_criada", { active: "sim" })).status).toBe(400);
+    expect((await put("categoria_criada", { active: true, channel: "email" })).status).toBe(400);
   });
 
   it("valida a query do extrato e do resumo", async () => {

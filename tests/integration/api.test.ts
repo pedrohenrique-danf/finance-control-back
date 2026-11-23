@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { dueDateIn, monthOf, shiftMonth, todayIn } from "@/shared/dates";
 import { setupIntegration } from "./support";
 
@@ -436,7 +436,7 @@ describe("importar, exportar e notificações (RF07)", () => {
     expect((await api.get("/api/v1/notifications")).data.meta.unread).toBe(0);
   });
 
-  it("lançar transação e criar categoria geram notificações do sistema", async () => {
+  it("lançar transação e criar categoria geram notificações com o tipo da ação", async () => {
     const { api } = await it_.signUp();
     await api.post("/api/v1/categories", { name: "Viagem", type: "despesa", color: "#123456" });
     await api.post("/api/v1/transactions", {
@@ -447,9 +447,95 @@ describe("importar, exportar e notificações (RF07)", () => {
       date: "2026-11-05",
     });
     const list = (await api.get("/api/v1/notifications")).data.data;
-    expect(list.map((n: { title: string; message: string }) => [n.title, n.message])).toEqual([
-      ["Despesa registrada", "Passagem · R$ 1.234,50 em 05/11/2026"],
-      ["Categoria criada", "Viagem (despesa)"],
+    expect(list.map((n: { type: string; title: string; message: string }) => [n.type, n.title, n.message])).toEqual([
+      ["transacao_registrada", "Despesa registrada", "Passagem · R$ 1.234,50 em 05/11/2026"],
+      ["categoria_criada", "Categoria criada", "Viagem (despesa)"],
     ]);
+  });
+});
+
+describe("preferências de notificação", () => {
+  it("todos os tipos começam ativos; desligar um tipo para de gerar esse aviso", async () => {
+    const { api } = await it_.signUp();
+    const initial = await api.get("/api/v1/notification-preferences");
+    expect(initial.status).toBe(200);
+    expect(initial.data.data).toEqual([
+      { type: "transacao_registrada", active: true },
+      { type: "recorrencia_criada", active: true },
+      { type: "categoria_criada", active: true },
+      { type: "conta_criada", active: true },
+      { type: "importacao_concluida", active: true },
+      { type: "exportacao_pronta", active: true },
+    ]);
+
+    const off = await api.put("/api/v1/notification-preferences/categoria_criada", { active: false });
+    expect(off).toMatchObject({ status: 200, data: { type: "categoria_criada", active: false } });
+    // PUT idempotente
+    expect((await api.put("/api/v1/notification-preferences/categoria_criada", { active: false })).status).toBe(200);
+
+    await api.post("/api/v1/categories", { name: "Silenciada", type: "despesa", color: "#123456" });
+    await api.post("/api/v1/value-sources", { name: "Banco X", type: "conta_corrente", initialBalance: "0.00" });
+    const types = (await api.get("/api/v1/notifications")).data.data.map((n: { type: string }) => n.type);
+    expect(types).toEqual(["conta_criada"]);
+
+    await api.put("/api/v1/notification-preferences/categoria_criada", { active: true });
+    await api.post("/api/v1/categories", { name: "Ouvida", type: "despesa", color: "#123456" });
+    const after = (await api.get("/api/v1/notifications")).data.data.map((n: { type: string }) => n.type);
+    expect(after).toEqual(["categoria_criada", "conta_criada"]);
+
+    const prefs = (await api.get("/api/v1/notification-preferences")).data.data;
+    expect(prefs.every((p: { active: boolean }) => p.active)).toBe(true);
+    expect((await api.put("/api/v1/notification-preferences/lembrete_registro", { active: false })).status).toBe(400);
+    expect((await api.put("/api/v1/notification-preferences/conta_criada", { active: "nao" })).status).toBe(400);
+  });
+});
+
+describe("recuperação de senha", () => {
+  it("envia o link, troca a senha, encerra as sessões e não deixa reusar o link", async () => {
+    const user = await it_.signUp("Maria Recupera");
+    const origin = it_.config.betterAuthUrl;
+    const auth = (path: string, body: unknown) =>
+      it_.server.request(`/api/auth${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: origin },
+        body: JSON.stringify(body),
+      });
+
+    const redirectTo = `${origin}/reset-password`;
+    const requested = await auth("/request-password-reset", { email: user.email, redirectTo });
+    expect(requested.status).toBe(200);
+    // e-mail inexistente responde igual (não revela quem tem conta) e não envia nada
+    expect((await auth("/request-password-reset", { email: "ninguem@financecontrol.local", redirectTo })).status).toBe(
+      200,
+    );
+
+    const mail = await vi.waitFor(() => {
+      const found = it_.outbox.find((m) => m.to === user.email);
+      if (!found) throw new Error("e-mail ainda não chegou");
+      return found;
+    });
+    expect(it_.outbox.filter((m) => m.to === "ninguem@financecontrol.local")).toHaveLength(0);
+    expect(mail.subject).toBe("Redefinir sua senha do FinanceControl");
+    expect(mail.text).toContain("Oi, Maria!");
+    const link = mail.text.match(/https?:\/\/\S+/)?.[0] as string;
+
+    // O link valida o token e redireciona para a tela do front com ?token=
+    const callback = await it_.server.request(link);
+    expect(callback.status).toBe(302);
+    const location = new URL(callback.headers.get("Location") as string);
+    expect(`${location.origin}${location.pathname}`).toBe(redirectTo);
+    const token = location.searchParams.get("token") as string;
+    expect(token).toBeTruthy();
+
+    expect((await auth("/reset-password", { newPassword: "Nova-Senha-2026!", token })).status).toBe(200);
+
+    // sessão antiga encerrada
+    const session = await it_.server.request("/api/auth/get-session", { headers: { cookie: user.cookie } });
+    expect(await session.json()).toBeNull();
+    // senha nova entra; antiga não
+    expect((await auth("/sign-in/email", { email: user.email, password: "Nova-Senha-2026!" })).status).toBe(200);
+    expect((await auth("/sign-in/email", { email: user.email, password: "Senha-Integracao-2026!" })).status).toBe(401);
+    // link de uso único
+    expect((await auth("/reset-password", { newPassword: "Outra-Senha-2026!", token })).status).toBe(400);
   });
 });

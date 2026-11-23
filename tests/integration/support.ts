@@ -4,6 +4,7 @@ import { type App, createApp } from "@/app/create-app";
 import { createHonoServer } from "@/app/http/hono-adapter";
 import { createDb } from "@/db/client";
 import { users } from "@/db/schema";
+import type { MailMessage } from "@/shared/mailer";
 
 // Integração: banco REAL (branch Neon de homologação do .env), nunca produção (docs/05).
 try {
@@ -16,7 +17,10 @@ export function setupIntegration() {
   const config = loadConfig();
   if (config.env === "production") throw new Error("Testes de integração bloqueados em produção.");
   const { db, close } = createDb(config.databaseUrl);
-  const app: App = createApp({ ...config, logLevel: "error" }, { db });
+  // E-mails ficam numa caixa de saída em memória (nada é enviado de verdade).
+  const outbox: MailMessage[] = [];
+  const mailer = { send: async (message: MailMessage) => void outbox.push(message) };
+  const app: App = createApp({ ...config, logLevel: "error" }, { db, mailer });
   const server = createHonoServer(app);
   const created: string[] = [];
 
@@ -35,7 +39,7 @@ export function setupIntegration() {
       .getSetCookie()
       .map((c) => c.split(";")[0])
       .join("; ");
-    return { id: body.user.id, api: client(cookie) };
+    return { id: body.user.id, email, cookie, api: client(cookie) };
   }
 
   function client(cookie: string) {
@@ -64,7 +68,7 @@ export function setupIntegration() {
     await close();
   }
 
-  return { app, db, signUp, teardown };
+  return { app, config, server, outbox, client, signUp, teardown, db };
 }
 
 export type ApiClient = Awaited<ReturnType<ReturnType<typeof setupIntegration>["signUp"]>>["api"];

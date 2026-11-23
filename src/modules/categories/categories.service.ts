@@ -32,7 +32,7 @@ export function createCategoriesService(deps: { repository: CategoriesRepository
     async create(userId: string, input: CreateCategoryInput): Promise<CategoryDto> {
       const created = await repository.insert(userId, input);
       await notifier.notify(userId, {
-        type: "sistema",
+        type: "categoria_criada",
         title: "Categoria criada",
         message: `${created.name} (${created.type})`,
       });

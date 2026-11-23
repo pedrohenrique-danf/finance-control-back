@@ -22,7 +22,7 @@ export function createValueSourcesService(deps: { repository: ValueSourcesReposi
 
     async create(userId: string, input: ValueSourceInput): Promise<ValueSourceDto> {
       const id = await repository.insert(userId, input);
-      await notifier.notify(userId, { type: "sistema", title: "Conta criada", message: input.name });
+      await notifier.notify(userId, { type: "conta_criada", title: "Conta criada", message: input.name });
       return get(userId, id);
     },
 

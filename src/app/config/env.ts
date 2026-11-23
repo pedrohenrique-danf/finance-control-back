@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { LogLevel } from "@/shared/logger";
+import type { MailConfig } from "@/shared/mailer";
 
 const envSchema = z
   .object({
@@ -12,6 +13,12 @@ const envSchema = z
     GOOGLE_CLIENT_ID: z.string().min(1).optional(),
     GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
     CORS_ORIGINS: z.string().default(""),
+    // E-mail (recuperação de senha). Sem SMTP em dev/test, o link vai para o log.
+    SMTP_HOST: z.string().min(1).optional(),
+    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+    SMTP_USER: z.string().min(1).optional(),
+    SMTP_PASS: z.string().min(1).optional(),
+    MAIL_FROM: z.string().min(1).optional(),
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   })
   .superRefine((env, ctx) => {
@@ -20,6 +27,21 @@ const envSchema = z
         code: "custom",
         path: ["GOOGLE_CLIENT_ID"],
         message: "Informe CLIENT_ID e CLIENT_SECRET juntos.",
+      });
+    }
+    const smtp = [env.SMTP_HOST, env.SMTP_USER, env.SMTP_PASS, env.MAIL_FROM];
+    if (smtp.some(Boolean) && !smtp.every(Boolean)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SMTP_HOST"],
+        message: "Informe SMTP_HOST, SMTP_USER, SMTP_PASS e MAIL_FROM juntos.",
+      });
+    }
+    if (env.NODE_ENV === "production" && !env.SMTP_HOST) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["SMTP_HOST"],
+        message: "SMTP é obrigatório em produção (e-mail de recuperação de senha).",
       });
     }
     if (env.NODE_ENV === "production" && env.CORS_ORIGINS.trim() === "") {
@@ -36,6 +58,8 @@ export interface AppConfig {
   betterAuthUrl: string;
   google: { clientId: string; clientSecret: string } | undefined;
   corsOrigins: string[];
+  /** SMTP para e-mails transacionais; ausente em dev/test = e-mails vão para o log. */
+  mail: MailConfig | undefined;
   logLevel: LogLevel;
 }
 
@@ -63,6 +87,17 @@ export function loadConfig(source: Record<string, string | undefined> = process.
     corsOrigins: e.CORS_ORIGINS.split(",")
       .map((s) => s.trim())
       .filter(Boolean),
+    mail:
+      e.SMTP_HOST && e.SMTP_USER && e.SMTP_PASS && e.MAIL_FROM
+        ? {
+            host: e.SMTP_HOST,
+            port: e.SMTP_PORT,
+            secure: e.SMTP_PORT === 465,
+            user: e.SMTP_USER,
+            pass: e.SMTP_PASS,
+            from: e.MAIL_FROM,
+          }
+        : undefined,
     logLevel: e.LOG_LEVEL,
   };
 }

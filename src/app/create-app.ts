@@ -13,12 +13,14 @@ import { createTransactionsModule } from "@/modules/transactions";
 import { createValueSourcesModule } from "@/modules/value-sources";
 import { NotFoundError, UnauthenticatedError } from "@/shared/errors";
 import { createConsoleLogger, type Logger } from "@/shared/logger";
+import { createLogMailer, createSmtpMailer, type Mailer } from "@/shared/mailer";
 import type { ReferenceLookups } from "@/shared/references";
 
 export interface AppOverrides {
   db?: Database;
   logger?: Logger;
   auth?: Auth;
+  mailer?: Mailer;
   /** Extração de texto de PDF (os testes injetam linhas prontas). */
   extractPdfLines?: typeof extractPdfLines;
 }
@@ -28,6 +30,8 @@ export function createApp(config: AppConfig, overrides: AppOverrides = {}) {
   const logger = overrides.logger ?? createConsoleLogger(config.logLevel);
   const ownedDb = overrides.db ? null : createDb(config.databaseUrl);
   const db = overrides.db ?? (ownedDb as NonNullable<typeof ownedDb>).db;
+  // Sem SMTP (só dev/test; produção exige), os e-mails vão para o log.
+  const mailer = overrides.mailer ?? (config.mail ? createSmtpMailer(config.mail) : createLogMailer(logger));
 
   // Módulos de domínio: dependem uns dos outros só por interfaces (docs/04).
   const notifications = createNotificationsModule({ db, logger });
@@ -57,7 +61,7 @@ export function createApp(config: AppConfig, overrides: AppOverrides = {}) {
     }
   }
 
-  const auth = overrides.auth ?? createAuth({ db, config, onUserCreated });
+  const auth = overrides.auth ?? createAuth({ db, config, mailer, logger, onUserCreated });
 
   const routes: RouteDefinition[] = [
     healthRoute,

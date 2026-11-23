@@ -5,7 +5,7 @@ import { createNotificationsRoutes } from "./notifications.routes";
 import { createNotificationsService } from "./notifications.service";
 
 export type { NewNotification, NotificationDto } from "./notifications.repository";
-export type { NotificationsService, Notifier } from "./notifications.service";
+export type { NotificationPreferenceDto, NotificationsService, Notifier } from "./notifications.service";
 
 export function createNotificationsModule(deps: { db: Database; logger: Logger }) {
   const repository = createNotificationsRepository(deps.db);

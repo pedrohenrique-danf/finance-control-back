@@ -50,6 +50,8 @@ Antes de codar, defina: **recurso ↔ URI ↔ método HTTP ↔ resposta**.
 | GET | `/api/v1/notifications` | listar notificações (`meta.unread`) | 200 |
 | PUT | `/api/v1/notifications/:id` | marcar como lida (`{ "status": "lida" }`) | 200 |
 | PUT | `/api/v1/notifications` | marcar todas como lidas (`{ "status": "lida" }`) | 200 |
+| GET | `/api/v1/notification-preferences` | quais avisos de ação o usuário recebe (todos os tipos) | 200 |
+| PUT | `/api/v1/notification-preferences/:type` | ligar/desligar um tipo (`{ "active": false }`) | 200 |
 | `*` | `/api/auth/*` | Better Auth (ver 07) | — |
 
 Regras de URI: substantivos no plural, `kebab-case`, sem verbos. Coleção (`/categories`) e recurso (`/categories/:id`) são recursos **diferentes**. A notação `:id` é neutra; adapte à sintaxe do framework escolhido.

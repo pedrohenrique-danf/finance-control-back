@@ -1,6 +1,6 @@
 import { and, count, desc, eq, ne, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
-import { notifications } from "@/db/schema";
+import { notificationPreferences, notifications } from "@/db/schema";
 import type { NotificationStatus, NotificationType } from "@/shared/enums";
 
 export interface NotificationDto {
@@ -40,21 +40,54 @@ const toDto = (r: Row): NotificationDto => ({
 /** Só o canal app aparece na tela de notificações. */
 const ofUser = (userId: string) => and(eq(notifications.userId, userId), eq(notifications.channel, "app"));
 
+const column = (c: { name: string }) => sql.identifier(c.name);
+
 export function createNotificationsRepository(db: Database) {
   return {
-    async insert(userId: string, input: NewNotification, now: Date): Promise<void> {
-      await db.insert(notifications).values({
-        userId,
-        type: input.type,
-        channel: "app",
-        title: input.title.slice(0, 120),
-        message: input.message,
-        status: "enviada", // canal app: entregue ao gravar; o usuário marca como lida
-        scheduledFor: now,
-        sentAt: now,
-        transactionId: input.transactionId ?? null,
-        recurrenceId: input.recurrenceId ?? null,
-      });
+    /**
+     * Grava o aviso, a menos que o usuário tenha desligado esse tipo (uma ida ao banco só).
+     * Canal app: entregue ao gravar (`enviada`); o usuário marca como lida.
+     */
+    async insert(userId: string, input: NewNotification, now: Date): Promise<boolean> {
+      const n = notifications;
+      const p = notificationPreferences;
+      const at = now.toISOString();
+      const result = await db.execute(sql`
+        insert into ${n} (${column(n.userId)}, ${column(n.type)}, ${column(n.channel)}, ${column(n.title)},
+          ${column(n.message)}, ${column(n.status)}, ${column(n.scheduledFor)}, ${column(n.sentAt)},
+          ${column(n.transactionId)}, ${column(n.recurrenceId)})
+        select ${userId}, ${input.type}, 'app', ${input.title.slice(0, 120)}, ${input.message}, 'enviada',
+          ${at}::timestamptz, ${at}::timestamptz, ${input.transactionId ?? null}::uuid, ${input.recurrenceId ?? null}::uuid
+        where not exists (
+          select 1 from ${p}
+          where ${p.userId} = ${userId} and ${p.type} = ${input.type} and ${p.channel} = 'app' and ${p.active} = false
+        )`);
+      return (result.rowCount ?? 0) > 0;
+    },
+
+    /** Tipos desligados pelo usuário (os demais estão ativos). */
+    async mutedTypes(userId: string): Promise<NotificationType[]> {
+      const rows = await db
+        .select({ type: notificationPreferences.type })
+        .from(notificationPreferences)
+        .where(
+          and(
+            eq(notificationPreferences.userId, userId),
+            eq(notificationPreferences.channel, "app"),
+            eq(notificationPreferences.active, false),
+          ),
+        );
+      return rows.map((r) => r.type as NotificationType);
+    },
+
+    async setPreference(userId: string, type: NotificationType, active: boolean, now: Date): Promise<void> {
+      await db
+        .insert(notificationPreferences)
+        .values({ userId, type, channel: "app", active, updatedAt: now })
+        .onConflictDoUpdate({
+          target: [notificationPreferences.userId, notificationPreferences.type, notificationPreferences.channel],
+          set: { active, updatedAt: now },
+        });
     },
 
     async page(userId: string, page: number, pageSize: number) {
